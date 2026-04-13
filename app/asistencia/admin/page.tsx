@@ -9,9 +9,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Checkbox } from "@/components/ui/checkbox"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
-import { ArrowLeft, UserPlus, Pencil, Trash2, DollarSign, GraduationCap, Clock, Moon, Sun, Users } from "lucide-react"
+import { ArrowLeft, UserPlus, Pencil, Trash2, DollarSign, GraduationCap, Clock, Moon, Sun, Users, Calendar } from "lucide-react"
+
+interface Schedule {
+  name: string
+  checkInTime: string
+  checkOutTime: string
+}
 
 interface Employee {
   id: string
@@ -28,6 +35,10 @@ interface Employee {
   breakEndTime: string
   maxGrade: number
   gradePenaltyRate: number
+  // For practicantes - multiple schedules
+  availableSchedules?: Schedule[]
+  selectedSchedule?: Schedule
+  flexibleSchedule?: boolean
 }
 
 interface AttendanceRecord {
@@ -42,6 +53,7 @@ interface AttendanceRecord {
   lateMinutes?: number
   penaltyAmount?: number
   pointsDeducted?: number
+  scheduleUsed?: string
 }
 
 const departments = [
@@ -53,10 +65,16 @@ const departments = [
   { value: "Operaciones", label: "Operaciones" },
 ]
 
+const defaultSchedules: Schedule[] = [
+  { name: "Mañana", checkInTime: "09:00", checkOutTime: "13:00" },
+  { name: "Tarde", checkInTime: "14:00", checkOutTime: "18:00" },
+  { name: "Mañana (Extendido)", checkInTime: "08:00", checkOutTime: "14:00" },
+  { name: "Tarde (Extendido)", checkInTime: "14:00", checkOutTime: "20:00" },
+]
+
 export default function AdminAsistenciaPage() {
   const [isDarkMode, setIsDarkMode] = useState(true)
   
-  // Load theme preference
   useEffect(() => {
     const savedTheme = localStorage.getItem("asistencia-theme")
     if (savedTheme) {
@@ -70,7 +88,6 @@ export default function AdminAsistenciaPage() {
     localStorage.setItem("asistencia-theme", newMode ? "dark" : "light")
   }
 
-  // Theme classes
   const bgClass = isDarkMode ? "bg-[#0a0a0a] text-white" : "bg-gray-50 text-gray-900"
   const cardBg = isDarkMode ? "bg-[#141414] border-[#2a2a2a]" : "bg-white border-gray-200"
   const inputBg = isDarkMode ? "bg-[#1a1a1a] border-[#2a2a2a]" : "bg-white border-gray-300"
@@ -79,7 +96,6 @@ export default function AdminAsistenciaPage() {
   const tableBorder = isDarkMode ? "border-[#2a2a2a]" : "border-gray-200"
   const subCardBg = isDarkMode ? "bg-[#1a1a1a]" : "bg-gray-100"
 
-  // Load employees and attendance from localStorage
   const [employees, setEmployees] = useState<Employee[]>([])
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([])
   
@@ -100,7 +116,6 @@ export default function AdminAsistenciaPage() {
     }
   }, [])
   
-  // Save to localStorage whenever data changes
   useEffect(() => {
     if (employees.length > 0) {
       localStorage.setItem("dsg-employees", JSON.stringify(employees))
@@ -111,7 +126,6 @@ export default function AdminAsistenciaPage() {
     localStorage.setItem("dsg-attendance", JSON.stringify(attendance))
   }, [attendance])
 
-  // Add employee form state
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [newEmployee, setNewEmployee] = useState<Partial<Employee>>({
     type: "empleado",
@@ -124,7 +138,10 @@ export default function AdminAsistenciaPage() {
     breakEndTime: "15:00",
     maxGrade: 20,
     gradePenaltyRate: 1,
+    flexibleSchedule: false,
+    availableSchedules: [defaultSchedules[0]],
   })
+  const [selectedSchedules, setSelectedSchedules] = useState<string[]>(["Mañana"])
 
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [deletingEmployee, setDeletingEmployee] = useState<Employee | null>(null)
@@ -136,11 +153,24 @@ export default function AdminAsistenciaPage() {
     return () => clearInterval(timer)
   }, [])
 
+  const handleScheduleToggle = (scheduleName: string) => {
+    setSelectedSchedules(prev => {
+      if (prev.includes(scheduleName)) {
+        return prev.filter(s => s !== scheduleName)
+      }
+      return [...prev, scheduleName]
+    })
+  }
+
   const handleAddEmployee = () => {
     if (!newEmployee.dni || !newEmployee.name || !newEmployee.email) {
       alert("Complete todos los campos obligatorios")
       return
     }
+
+    const availableSchedules = newEmployee.type === "practicante" 
+      ? selectedSchedules.map(name => defaultSchedules.find(s => s.name === name)!).filter(Boolean)
+      : undefined
 
     const employee: Employee = {
       id: newEmployee.dni,
@@ -157,6 +187,9 @@ export default function AdminAsistenciaPage() {
       breakEndTime: newEmployee.breakEndTime || "15:00",
       maxGrade: newEmployee.maxGrade || 20,
       gradePenaltyRate: newEmployee.gradePenaltyRate || 1,
+      flexibleSchedule: newEmployee.flexibleSchedule,
+      availableSchedules,
+      selectedSchedule: availableSchedules?.[0],
     }
 
     setEmployees([...employees, employee])
@@ -172,7 +205,10 @@ export default function AdminAsistenciaPage() {
       breakEndTime: "15:00",
       maxGrade: 20,
       gradePenaltyRate: 1,
+      flexibleSchedule: false,
+      availableSchedules: [defaultSchedules[0]],
     })
+    setSelectedSchedules(["Mañana"])
   }
 
   const onDeleteEmployee = () => {
@@ -212,12 +248,7 @@ export default function AdminAsistenciaPage() {
               </div>
             </div>
             <div className="flex items-center gap-4">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={toggleTheme}
-                className={mutedText}
-              >
+              <Button variant="ghost" size="icon" onClick={toggleTheme} className={mutedText}>
                 {isDarkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
               </Button>
               <div className="text-right">
@@ -229,7 +260,6 @@ export default function AdminAsistenciaPage() {
       </header>
 
       <main className="container mx-auto px-6 py-8">
-        {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           <Card className={`border ${cardBg}`}>
             <CardContent className="p-4">
@@ -264,7 +294,6 @@ export default function AdminAsistenciaPage() {
           </Card>
         </div>
 
-        {/* Employees Table */}
         <Card className={`border ${cardBg}`}>
           <CardContent className="p-6">
             <div className="flex items-center justify-between mb-6">
@@ -294,7 +323,7 @@ export default function AdminAsistenciaPage() {
                     <TableHead className={mutedText}>Nombre</TableHead>
                     <TableHead className={mutedText}>Tipo</TableHead>
                     <TableHead className={mutedText}>Depto</TableHead>
-                    <TableHead className={mutedText}>Horario</TableHead>
+                    <TableHead className={mutedText}>Horario(s)</TableHead>
                     <TableHead className={mutedText}>Sueldo/Nota</TableHead>
                     <TableHead className={mutedText}>Acciones</TableHead>
                   </TableRow>
@@ -311,8 +340,24 @@ export default function AdminAsistenciaPage() {
                       </TableCell>
                       <TableCell className={mutedText}>{emp.department}</TableCell>
                       <TableCell className={`text-xs ${mutedText}`}>
-                        <Clock className="w-3 h-3 inline mr-1" />
-                        {emp.checkInTime} - {emp.checkOutTime}
+                        {emp.type === "practicante" && emp.availableSchedules ? (
+                          <div className="flex flex-col gap-1">
+                            {emp.availableSchedules.map((sched, idx) => (
+                              <span key={idx} className="flex items-center gap-1">
+                                <Calendar className="w-3 h-3" />
+                                {sched.name}: {sched.checkInTime}-{sched.checkOutTime}
+                              </span>
+                            ))}
+                            {emp.flexibleSchedule && (
+                              <span className="text-green-400">(Horario flexible)</span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {emp.checkInTime} - {emp.checkOutTime}
+                          </span>
+                        )}
                       </TableCell>
                       <TableCell>
                         {emp.type === "empleado" ? (
@@ -357,7 +402,6 @@ export default function AdminAsistenciaPage() {
           </CardContent>
         </Card>
 
-        {/* Attendance Records */}
         <Card className={`border ${cardBg} mt-8`}>
           <CardContent className="p-6">
             <h2 className="text-lg font-medium mb-4">Historial de Asistencia General</h2>
@@ -367,6 +411,7 @@ export default function AdminAsistenciaPage() {
                   <TableRow className={`${tableBorder} hover:bg-transparent`}>
                     <TableHead className={mutedText}>Fecha</TableHead>
                     <TableHead className={mutedText}>Colaborador</TableHead>
+                    <TableHead className={mutedText}>Horario Usado</TableHead>
                     <TableHead className={mutedText}>Entrada</TableHead>
                     <TableHead className={mutedText}>Estado</TableHead>
                     <TableHead className={mutedText}>Penalizacion</TableHead>
@@ -379,6 +424,7 @@ export default function AdminAsistenciaPage() {
                         {format(record.date, "dd/MM/yyyy HH:mm")}
                       </TableCell>
                       <TableCell>{record.employeeName}</TableCell>
+                      <TableCell className={mutedText}>{record.scheduleUsed || "—"}</TableCell>
                       <TableCell>{record.checkIn}</TableCell>
                       <TableCell>
                         <Badge className={record.status === "presente" ? "bg-green-600" : "bg-yellow-600"}>
@@ -398,7 +444,7 @@ export default function AdminAsistenciaPage() {
                   ))}
                   {attendance.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={5} className={`text-center ${mutedText} py-8`}>
+                      <TableCell colSpan={6} className={`text-center ${mutedText} py-8`}>
                         No hay registros de asistencia
                       </TableCell>
                     </TableRow>
@@ -410,7 +456,6 @@ export default function AdminAsistenciaPage() {
         </Card>
       </main>
 
-      {/* Add Employee Dialog */}
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
         <DialogContent className={`${isDarkMode ? "bg-[#141414] border-[#2a2a2a] text-white" : "bg-white border-gray-200"} max-w-2xl max-h-[90vh] overflow-y-auto`}>
           <DialogHeader>
@@ -418,7 +463,6 @@ export default function AdminAsistenciaPage() {
           </DialogHeader>
           
           <div className="space-y-4 py-4">
-            {/* Basic Info */}
             <div className={`p-4 ${subCardBg} rounded-lg space-y-3`}>
               <h4 className="font-medium text-sm">Informacion Basica</h4>
               <div className="grid grid-cols-2 gap-3">
@@ -487,55 +531,91 @@ export default function AdminAsistenciaPage() {
               </div>
             </div>
 
-            {/* Schedule */}
-            <div className={`p-4 ${subCardBg} rounded-lg space-y-3`}>
-              <h4 className="font-medium text-sm flex items-center gap-2">
-                <Clock className="w-4 h-4" />
-                Horario de Trabajo
-              </h4>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={`text-xs ${mutedText} mb-1 block`}>Hora Entrada</label>
-                  <Input 
-                    type="time"
-                    value={newEmployee.checkInTime} 
-                    onChange={(e) => setNewEmployee({...newEmployee, checkInTime: e.target.value})}
-                    className={inputBg}
-                  />
+            {newEmployee.type === "empleado" ? (
+              <div className={`p-4 ${subCardBg} rounded-lg space-y-3`}>
+                <h4 className="font-medium text-sm flex items-center gap-2">
+                  <Clock className="w-4 h-4" />
+                  Horario de Trabajo
+                </h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={`text-xs ${mutedText} mb-1 block`}>Hora Entrada</label>
+                    <Input 
+                      type="time"
+                      value={newEmployee.checkInTime} 
+                      onChange={(e) => setNewEmployee({...newEmployee, checkInTime: e.target.value})}
+                      className={inputBg}
+                    />
+                  </div>
+                  <div>
+                    <label className={`text-xs ${mutedText} mb-1 block`}>Hora Salida</label>
+                    <Input 
+                      type="time"
+                      value={newEmployee.checkOutTime} 
+                      onChange={(e) => setNewEmployee({...newEmployee, checkOutTime: e.target.value})}
+                      className={inputBg}
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className={`text-xs ${mutedText} mb-1 block`}>Hora Salida</label>
-                  <Input 
-                    type="time"
-                    value={newEmployee.checkOutTime} 
-                    onChange={(e) => setNewEmployee({...newEmployee, checkOutTime: e.target.value})}
-                    className={inputBg}
-                  />
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={`text-xs ${mutedText} mb-1 block`}>Inicio Receso</label>
+                    <Input 
+                      type="time"
+                      value={newEmployee.breakStartTime} 
+                      onChange={(e) => setNewEmployee({...newEmployee, breakStartTime: e.target.value})}
+                      className={inputBg}
+                    />
+                  </div>
+                  <div>
+                    <label className={`text-xs ${mutedText} mb-1 block`}>Fin Receso</label>
+                    <Input 
+                      type="time"
+                      value={newEmployee.breakEndTime} 
+                      onChange={(e) => setNewEmployee({...newEmployee, breakEndTime: e.target.value})}
+                      className={inputBg}
+                    />
+                  </div>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={`text-xs ${mutedText} mb-1 block`}>Inicio Receso</label>
-                  <Input 
-                    type="time"
-                    value={newEmployee.breakStartTime} 
-                    onChange={(e) => setNewEmployee({...newEmployee, breakStartTime: e.target.value})}
-                    className={inputBg}
-                  />
+            ) : (
+              <div className={`p-4 ${subCardBg} rounded-lg space-y-3`}>
+                <h4 className="font-medium text-sm flex items-center gap-2">
+                  <Calendar className="w-4 h-4" />
+                  Horarios Disponibles para el Practicante
+                </h4>
+                <p className={`text-xs ${mutedText}`}>Seleccione los horarios que el practicante puede usar (con permiso del ingeniero):</p>
+                
+                <div className="space-y-2">
+                  {defaultSchedules.map((schedule) => (
+                    <div key={schedule.name} className="flex items-center space-x-2">
+                      <Checkbox 
+                        id={schedule.name}
+                        checked={selectedSchedules.includes(schedule.name)}
+                        onCheckedChange={() => handleScheduleToggle(schedule.name)}
+                      />
+                      <label htmlFor={schedule.name} className="text-sm flex-1">
+                        <span className="font-medium">{schedule.name}:</span> 
+                        <span className={mutedText}> {schedule.checkInTime} - {schedule.checkOutTime}</span>
+                      </label>
+                    </div>
+                  ))}
                 </div>
-                <div>
-                  <label className={`text-xs ${mutedText} mb-1 block`}>Fin Receso</label>
-                  <Input 
-                    type="time"
-                    value={newEmployee.breakEndTime} 
-                    onChange={(e) => setNewEmployee({...newEmployee, breakEndTime: e.target.value})}
-                    className={inputBg}
-                  />
-                </div>
-              </div>
-            </div>
 
-            {/* Salary / Grade Configuration */}
+                <div className="flex items-center space-x-2 pt-2">
+                  <Checkbox 
+                    id="flexible"
+                    checked={newEmployee.flexibleSchedule}
+                    onCheckedChange={(checked) => setNewEmployee({...newEmployee, flexibleSchedule: checked as boolean})}
+                  />
+                  <label htmlFor="flexible" className="text-sm">
+                    <span className="font-medium text-green-400">Permitir horario flexible</span>
+                    <span className={mutedText}> (puede registrar asistencia en cualquier hora con permiso)</span>
+                  </label>
+                </div>
+              </div>
+            )}
+
             {newEmployee.type === "empleado" ? (
               <div className={`p-4 ${subCardBg} rounded-lg space-y-3`}>
                 <h4 className="font-medium text-sm flex items-center gap-2">
@@ -610,7 +690,6 @@ export default function AdminAsistenciaPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation */}
       <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
         <DialogContent className={`${isDarkMode ? "bg-[#141414] border-[#2a2a2a] text-white" : "bg-white border-gray-200"}`}>
           <DialogHeader>

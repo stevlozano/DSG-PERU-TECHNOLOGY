@@ -7,9 +7,16 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { format, parse, isSameDay } from "date-fns"
 import { es } from "date-fns/locale"
-import { ArrowLeft, LogIn, GraduationCap, Clock, CalendarDays, Moon, Sun, AlertTriangle } from "lucide-react"
+import { ArrowLeft, LogIn, GraduationCap, Clock, CalendarDays, Moon, Sun, AlertTriangle, CheckCircle2 } from "lucide-react"
+
+interface Schedule {
+  name: string
+  checkInTime: string
+  checkOutTime: string
+}
 
 interface AttendanceRecord {
   id: string
@@ -20,6 +27,7 @@ interface AttendanceRecord {
   status: "presente" | "ausente" | "tarde"
   lateMinutes?: number
   pointsDeducted?: number
+  scheduleUsed?: string
 }
 
 interface Employee {
@@ -33,6 +41,9 @@ interface Employee {
   checkOutTime: string
   dni?: string
   type: string
+  availableSchedules?: Schedule[]
+  selectedSchedule?: Schedule
+  flexibleSchedule?: boolean
 }
 
 export default function PracticanteAsistenciaPage() {
@@ -44,8 +55,9 @@ export default function PracticanteAsistenciaPage() {
   const [myRecords, setMyRecords] = useState<AttendanceRecord[]>([])
   const [totalPointsLost, setTotalPointsLost] = useState(0)
   const [isDarkMode, setIsDarkMode] = useState(true)
+  const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null)
+  const [hasPermission, setHasPermission] = useState(false)
 
-  // Load theme preference
   useEffect(() => {
     const savedTheme = localStorage.getItem("asistencia-theme")
     if (savedTheme) {
@@ -59,13 +71,13 @@ export default function PracticanteAsistenciaPage() {
     localStorage.setItem("asistencia-theme", newMode ? "dark" : "light")
   }
 
-  // Theme classes
   const bgClass = isDarkMode ? "bg-[#0a0a0a] text-white" : "bg-gray-50 text-gray-900"
   const cardBg = isDarkMode ? "bg-[#141414] border-[#2a2a2a]" : "bg-white border-gray-200"
   const inputBg = isDarkMode ? "bg-[#1a1a1a] border-[#2a2a2a]" : "bg-white border-gray-300"
   const headerBorder = isDarkMode ? "border-[#2a2a2a]" : "border-gray-200"
   const mutedText = isDarkMode ? "text-gray-400" : "text-gray-600"
   const tableBorder = isDarkMode ? "border-[#2a2a2a]" : "border-gray-200"
+  const subCardBg = isDarkMode ? "bg-[#1a1a1a]" : "bg-gray-100"
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -74,50 +86,48 @@ export default function PracticanteAsistenciaPage() {
     return () => clearInterval(timer)
   }, [])
 
-  // Load practicante data from localStorage based on DNI
   const handleLogin = () => {
-    if (dni.length >= 8) {
-      // Get employees from localStorage
-      const savedEmployees = localStorage.getItem("dsg-employees")
-      const savedAttendance = localStorage.getItem("dsg-attendance")
+    if (dni.length < 8) return
+    
+    const savedEmployees = localStorage.getItem("dsg-employees")
+    const savedAttendance = localStorage.getItem("dsg-attendance")
+    
+    if (savedEmployees) {
+      const employees: Employee[] = JSON.parse(savedEmployees)
+      const found = employees.find(emp => (emp.id === dni || emp.dni === dni) && emp.type === "practicante")
       
-      if (savedEmployees) {
-        const employees: Employee[] = JSON.parse(savedEmployees)
-        // Find practicante by DNI
-        const found = employees.find(emp => (emp.id === dni || emp.dni === dni) && emp.type === "practicante")
+      if (found) {
+        setCurrentPracticante(found)
+        setIsAuthenticated(true)
         
-        if (found) {
-          setCurrentPracticante(found)
-          setIsAuthenticated(true)
+        // Set default schedule
+        if (found.availableSchedules && found.availableSchedules.length > 0) {
+          setSelectedSchedule(found.availableSchedules[0])
+        }
+        
+        if (savedAttendance) {
+          const allRecords: AttendanceRecord[] = JSON.parse(savedAttendance).map((r: any) => ({
+            ...r,
+            date: new Date(r.date)
+          }))
           
-          // Load attendance records for this practicante only
-          if (savedAttendance) {
-            const allRecords: AttendanceRecord[] = JSON.parse(savedAttendance).map((r: any) => ({
-              ...r,
-              date: new Date(r.date)
-            }))
-            
-            // Filter only this practicante's records
-            const myRecordsFiltered = allRecords.filter(r => r.employeeId === found.id)
-            setMyRecords(myRecordsFiltered)
-            
-            // Calculate total points lost
-            const total = myRecordsFiltered.reduce((sum, r) => sum + (r.pointsDeducted || 0), 0)
-            setTotalPointsLost(total)
-            
-            // Check if already checked in today
-            const today = new Date()
-            const todayRec = myRecordsFiltered.find(r => isSameDay(new Date(r.date), today))
-            if (todayRec) {
-              setTodayRecord(todayRec)
-            }
+          const myRecordsFiltered = allRecords.filter(r => r.employeeId === found.id)
+          setMyRecords(myRecordsFiltered)
+          
+          const total = myRecordsFiltered.reduce((sum, r) => sum + (r.pointsDeducted || 0), 0)
+          setTotalPointsLost(total)
+          
+          const today = new Date()
+          const todayRec = myRecordsFiltered.find(r => isSameDay(new Date(r.date), today))
+          if (todayRec) {
+            setTodayRecord(todayRec)
           }
-        } else {
-          alert("DNI no encontrado o no es un practicante")
         }
       } else {
-        alert("No hay practicantes registrados. Contacte al administrador.")
+        alert("DNI no encontrado o no es un practicante")
       }
+    } else {
+      alert("No hay practicantes registrados. Contacte al administrador.")
     }
   }
 
@@ -125,7 +135,40 @@ export default function PracticanteAsistenciaPage() {
     if (!currentPracticante) return
     
     const now = format(new Date(), "HH:mm")
-    const scheduled = parse(currentPracticante.checkInTime, "HH:mm", new Date())
+    
+    // Determine which schedule to use
+    let scheduleToUse = selectedSchedule
+    
+    // If has flexible schedule and permission, use current time as reference
+    if (currentPracticante.flexibleSchedule && hasPermission) {
+      // Allow check-in without penalty for being "late" since they have permission
+      const newRecord: AttendanceRecord = {
+        id: Date.now().toString(),
+        employeeId: currentPracticante.id,
+        date: new Date(),
+        checkIn: now,
+        checkOut: undefined,
+        status: "presente",
+        scheduleUsed: "Horario flexible (con permiso)",
+      }
+      
+      const savedAttendance = localStorage.getItem("dsg-attendance")
+      const allRecords = savedAttendance ? JSON.parse(savedAttendance) : []
+      allRecords.push(newRecord)
+      localStorage.setItem("dsg-attendance", JSON.stringify(allRecords))
+      
+      setTodayRecord(newRecord)
+      setMyRecords([...myRecords, newRecord])
+      return
+    }
+    
+    // Normal schedule-based check-in
+    if (!scheduleToUse) {
+      alert("Seleccione un horario")
+      return
+    }
+    
+    const scheduled = parse(scheduleToUse.checkInTime, "HH:mm", new Date())
     const actual = parse(now, "HH:mm", new Date())
     const isLate = actual > scheduled
     
@@ -143,9 +186,9 @@ export default function PracticanteAsistenciaPage() {
       status: isLate ? "tarde" : "presente",
       lateMinutes: isLate ? lateMinutes : undefined,
       pointsDeducted: isLate ? pointsDeducted : undefined,
+      scheduleUsed: scheduleToUse.name,
     }
     
-    // Save to localStorage
     const savedAttendance = localStorage.getItem("dsg-attendance")
     const allRecords = savedAttendance ? JSON.parse(savedAttendance) : []
     allRecords.push(newRecord)
@@ -163,7 +206,6 @@ export default function PracticanteAsistenciaPage() {
     
     const now = format(new Date(), "HH:mm")
     
-    // Update in localStorage
     const savedAttendance = localStorage.getItem("dsg-attendance")
     if (savedAttendance) {
       const allRecords: AttendanceRecord[] = JSON.parse(savedAttendance)
@@ -236,12 +278,7 @@ export default function PracticanteAsistenciaPage() {
               <p className={`text-sm ${mutedText}`}>Practicante - {currentPracticante?.department}</p>
             </div>
             <div className="flex items-center gap-4">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={toggleTheme}
-                className={mutedText}
-              >
+              <Button variant="ghost" size="icon" onClick={toggleTheme} className={mutedText}>
                 {isDarkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
               </Button>
               <div className="text-right">
@@ -256,7 +293,7 @@ export default function PracticanteAsistenciaPage() {
       </header>
 
       <main className="container mx-auto px-4 py-8 space-y-6">
-        {/* Nota Actual */}
+        {/* Grade Card */}
         <Card className={cardBg}>
           <CardContent className="p-6">
             <div className="flex items-center justify-between mb-4">
@@ -264,9 +301,7 @@ export default function PracticanteAsistenciaPage() {
                 <GraduationCap className="w-5 h-5" />
                 Tu Nota Actual
               </h2>
-              <Badge 
-                className={gradePercentage >= 70 ? "bg-green-600" : gradePercentage >= 50 ? "bg-yellow-600" : "bg-red-600"}
-              >
+              <Badge className={gradePercentage >= 70 ? "bg-green-600" : gradePercentage >= 50 ? "bg-yellow-600" : "bg-red-600"}>
                 {gradePercentage >= 70 ? "Aprobado" : gradePercentage >= 50 ? "Regular" : "En riesgo"}
               </Badge>
             </div>
@@ -278,7 +313,6 @@ export default function PracticanteAsistenciaPage() {
               <span className="text-2xl text-gray-400">/ {currentPracticante?.maxGrade}</span>
             </div>
             
-            {/* Barra de progreso */}
             <div className="w-full h-4 bg-gray-700 rounded-full overflow-hidden">
               <div 
                 className={`h-full transition-all ${gradePercentage >= 70 ? 'bg-green-500' : gradePercentage >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}
@@ -302,14 +336,14 @@ export default function PracticanteAsistenciaPage() {
           </CardContent>
         </Card>
 
-        {/* Registro de Hoy */}
+        {/* Today's Registration */}
         <Card className={cardBg}>
           <CardContent className="p-6">
             <h2 className="text-lg font-medium mb-4">Registro de Hoy</h2>
             
             {todayRecord ? (
               <div className="space-y-4">
-                <div className={`flex items-center justify-between p-4 ${isDarkMode ? "bg-[#1a1a1a]" : "bg-gray-100"} rounded-lg`}>
+                <div className={`flex items-center justify-between p-4 ${subCardBg} rounded-lg`}>
                   <div className="flex items-center gap-3">
                     <Clock className={`w-5 h-5 ${mutedText}`} />
                     <div>
@@ -317,11 +351,12 @@ export default function PracticanteAsistenciaPage() {
                       {todayRecord.checkOut && (
                         <p className={`text-sm ${mutedText}`}>Salida: {todayRecord.checkOut}</p>
                       )}
+                      {todayRecord.scheduleUsed && (
+                        <p className={`text-xs ${mutedText}`}>Horario: {todayRecord.scheduleUsed}</p>
+                      )}
                     </div>
                   </div>
-                  <Badge 
-                    className={todayRecord.status === "presente" ? "bg-green-600" : "bg-yellow-600"}
-                  >
+                  <Badge className={todayRecord.status === "presente" ? "bg-green-600" : "bg-yellow-600"}>
                     {todayRecord.status}
                   </Badge>
                 </div>
@@ -345,15 +380,71 @@ export default function PracticanteAsistenciaPage() {
                 )}
               </div>
             ) : (
-              <Button onClick={handleCheckIn} className="w-full h-16 text-lg bg-green-600 hover:bg-green-700">
-                <LogIn className="w-5 h-5 mr-2" />
-                Registrar Entrada
-              </Button>
+              <div className="space-y-4">
+                {/* Schedule Selection */}
+                {currentPracticante?.availableSchedules && currentPracticante.availableSchedules.length > 0 && (
+                  <div>
+                    <label className={`text-sm ${mutedText} mb-2 block`}>Seleccione su horario de hoy:</label>
+                    <Select 
+                      value={selectedSchedule?.name} 
+                      onValueChange={(val) => {
+                        const schedule = currentPracticante.availableSchedules?.find(s => s.name === val)
+                        setSelectedSchedule(schedule || null)
+                      }}
+                    >
+                      <SelectTrigger className={`${inputBg} h-12`}>
+                        <SelectValue placeholder="Seleccione horario" />
+                      </SelectTrigger>
+                      <SelectContent className={inputBg}>
+                        {currentPracticante.availableSchedules.map((schedule) => (
+                          <SelectItem key={schedule.name} value={schedule.name}>
+                            {schedule.name}: {schedule.checkInTime} - {schedule.checkOutTime}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {/* Flexible Schedule Permission */}
+                {currentPracticante?.flexibleSchedule && (
+                  <div className={`p-4 ${subCardBg} rounded-lg space-y-3`}>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        id="permission"
+                        checked={hasPermission}
+                        onChange={(e) => setHasPermission(e.target.checked)}
+                        className="w-4 h-4"
+                      />
+                      <label htmlFor="permission" className="text-sm">
+                        <span className="font-medium text-green-400">Tengo permiso del ingeniero</span>
+                        <span className={mutedText}> para usar horario flexible</span>
+                      </label>
+                    </div>
+                    {hasPermission && (
+                      <p className={`text-xs ${mutedText} ml-7`}>
+                        <CheckCircle2 className="w-3 h-3 inline mr-1 text-green-400" />
+                        Puede registrar asistencia ahora sin penalización por horario
+                      </p>
+                    )}
+                  </div>
+                )}
+                
+                <Button 
+                  onClick={handleCheckIn} 
+                  className="w-full h-16 text-lg bg-green-600 hover:bg-green-700"
+                  disabled={!selectedSchedule && !hasPermission}
+                >
+                  <LogIn className="w-5 h-5 mr-2" />
+                  Registrar Entrada
+                </Button>
+              </div>
             )}
           </CardContent>
         </Card>
 
-        {/* Mi Historial */}
+        {/* My History */}
         <Card className={cardBg}>
           <CardContent className="p-6">
             <h2 className="text-lg font-medium mb-4 flex items-center gap-2">
@@ -366,8 +457,8 @@ export default function PracticanteAsistenciaPage() {
                 <TableHeader>
                   <TableRow className={`${tableBorder} hover:bg-transparent`}>
                     <TableHead className={mutedText}>Fecha</TableHead>
+                    <TableHead className={mutedText}>Horario</TableHead>
                     <TableHead className={mutedText}>Entrada</TableHead>
-                    <TableHead className={mutedText}>Salida</TableHead>
                     <TableHead className={mutedText}>Estado</TableHead>
                     <TableHead className={mutedText}>Puntos</TableHead>
                   </TableRow>
@@ -376,12 +467,10 @@ export default function PracticanteAsistenciaPage() {
                   {myRecords.map((record) => (
                     <TableRow key={record.id} className={tableBorder}>
                       <TableCell>{format(record.date, "dd/MM/yyyy")}</TableCell>
+                      <TableCell className={mutedText}>{record.scheduleUsed || "—"}</TableCell>
                       <TableCell>{record.checkIn || "—"}</TableCell>
-                      <TableCell>{record.checkOut || "—"}</TableCell>
                       <TableCell>
-                        <Badge 
-                          className={record.status === "presente" ? "bg-green-600" : "bg-yellow-600"}
-                        >
+                        <Badge className={record.status === "presente" ? "bg-green-600" : "bg-yellow-600"}>
                           {record.status}
                         </Badge>
                       </TableCell>
