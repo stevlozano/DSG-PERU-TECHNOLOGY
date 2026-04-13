@@ -11,10 +11,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
-import { ArrowLeft, UserPlus, Pencil, Trash2, DollarSign, GraduationCap, CheckCircle2, Moon, Sun } from "lucide-react"
+import { ArrowLeft, UserPlus, Pencil, Trash2, DollarSign, GraduationCap, Clock, Moon, Sun, Users } from "lucide-react"
 
 interface Employee {
   id: string
+  dni: string
   name: string
   type: "empleado" | "practicante"
   email: string
@@ -23,6 +24,8 @@ interface Employee {
   latePenaltyRate: number
   checkInTime: string
   checkOutTime: string
+  breakStartTime: string
+  breakEndTime: string
   maxGrade: number
   gradePenaltyRate: number
 }
@@ -47,6 +50,7 @@ const departments = [
   { value: "Ventas", label: "Ventas" },
   { value: "RRHH", label: "Recursos Humanos" },
   { value: "Finanzas", label: "Finanzas" },
+  { value: "Operaciones", label: "Operaciones" },
 ]
 
 export default function AdminAsistenciaPage() {
@@ -73,6 +77,7 @@ export default function AdminAsistenciaPage() {
   const headerBorder = isDarkMode ? "border-[#2a2a2a]" : "border-gray-200"
   const mutedText = isDarkMode ? "text-gray-400" : "text-gray-600"
   const tableBorder = isDarkMode ? "border-[#2a2a2a]" : "border-gray-200"
+  const subCardBg = isDarkMode ? "bg-[#1a1a1a]" : "bg-gray-100"
 
   // Load employees and attendance from localStorage
   const [employees, setEmployees] = useState<Employee[]>([])
@@ -84,18 +89,9 @@ export default function AdminAsistenciaPage() {
     
     if (savedEmployees) {
       setEmployees(JSON.parse(savedEmployees))
-    } else {
-      // Default initial data
-      const initialEmployees = [
-        { id: "1", name: "Juan Perez", type: "empleado" as const, email: "juan@dsg.pe", department: "TI", salary: 3500, latePenaltyRate: 2, checkInTime: "08:00", checkOutTime: "19:00", maxGrade: 20, gradePenaltyRate: 1 },
-        { id: "2", name: "Maria Garcia", type: "practicante" as const, email: "maria@dsg.pe", department: "Marketing", latePenaltyRate: 2, checkInTime: "09:00", checkOutTime: "13:00", maxGrade: 20, gradePenaltyRate: 1 },
-      ]
-      setEmployees(initialEmployees)
-      localStorage.setItem("dsg-employees", JSON.stringify(initialEmployees))
     }
     
     if (savedAttendance) {
-      // Convert date strings back to Date objects
       const parsed = JSON.parse(savedAttendance).map((r: any) => ({
         ...r,
         date: new Date(r.date)
@@ -115,42 +111,68 @@ export default function AdminAsistenciaPage() {
     localStorage.setItem("dsg-attendance", JSON.stringify(attendance))
   }, [attendance])
 
+  // Add employee form state
   const [isAddOpen, setIsAddOpen] = useState(false)
+  const [newEmployee, setNewEmployee] = useState<Partial<Employee>>({
+    type: "empleado",
+    department: "TI",
+    salary: 0,
+    latePenaltyRate: 2,
+    checkInTime: "08:00",
+    checkOutTime: "19:00",
+    breakStartTime: "13:00",
+    breakEndTime: "15:00",
+    maxGrade: 20,
+    gradePenaltyRate: 1,
+  })
+
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [deletingEmployee, setDeletingEmployee] = useState<Employee | null>(null)
-  const [selectedEmployee, setSelectedEmployee] = useState<string>("")
-  const [currentTime, setCurrentTime] = useState(format(new Date(), "HH:mm"))
   const [searchTerm, setSearchTerm] = useState("")
+  const [currentTime, setCurrentTime] = useState(format(new Date(), "HH:mm"))
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(format(new Date(), "HH:mm")), 60000)
     return () => clearInterval(timer)
   }, [])
 
-  const handleCheckIn = () => {
-    if (!selectedEmployee) return
-    const employee = employees.find(e => e.id === selectedEmployee)
-    if (!employee) return
-    
-    const now = format(new Date(), "HH:mm")
-    const isLate = now > employee.checkInTime
-    const lateMinutes = isLate ? 10 : 0
-    const penaltyAmount = employee.type === "empleado" ? lateMinutes * employee.latePenaltyRate : 0
-    const pointsDeducted = employee.type === "practicante" ? lateMinutes * employee.gradePenaltyRate : 0
-
-    const newRecord: AttendanceRecord = {
-      id: Date.now().toString(),
-      employeeId: selectedEmployee,
-      employeeName: employee.name,
-      employeeType: employee.type,
-      date: new Date(),
-      checkIn: now,
-      status: isLate ? "tarde" : "presente",
-      lateMinutes: isLate ? lateMinutes : undefined,
-      penaltyAmount: penaltyAmount || undefined,
-      pointsDeducted: pointsDeducted || undefined,
+  const handleAddEmployee = () => {
+    if (!newEmployee.dni || !newEmployee.name || !newEmployee.email) {
+      alert("Complete todos los campos obligatorios")
+      return
     }
-    setAttendance([...attendance, newRecord])
+
+    const employee: Employee = {
+      id: newEmployee.dni,
+      dni: newEmployee.dni,
+      name: newEmployee.name,
+      type: newEmployee.type || "empleado",
+      email: newEmployee.email,
+      department: newEmployee.department || "TI",
+      salary: newEmployee.type === "empleado" ? (newEmployee.salary || 0) : undefined,
+      latePenaltyRate: newEmployee.latePenaltyRate || 2,
+      checkInTime: newEmployee.checkInTime || "08:00",
+      checkOutTime: newEmployee.checkOutTime || "19:00",
+      breakStartTime: newEmployee.breakStartTime || "13:00",
+      breakEndTime: newEmployee.breakEndTime || "15:00",
+      maxGrade: newEmployee.maxGrade || 20,
+      gradePenaltyRate: newEmployee.gradePenaltyRate || 1,
+    }
+
+    setEmployees([...employees, employee])
+    setIsAddOpen(false)
+    setNewEmployee({
+      type: "empleado",
+      department: "TI",
+      salary: 0,
+      latePenaltyRate: 2,
+      checkInTime: "08:00",
+      checkOutTime: "19:00",
+      breakStartTime: "13:00",
+      breakEndTime: "15:00",
+      maxGrade: 20,
+      gradePenaltyRate: 1,
+    })
   }
 
   const onDeleteEmployee = () => {
@@ -167,7 +189,8 @@ export default function AdminAsistenciaPage() {
   }
 
   const filteredEmployees = employees.filter(emp => 
-    emp.name.toLowerCase().includes(searchTerm.toLowerCase())
+    emp.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    emp.dni.includes(searchTerm)
   )
 
   const todayRecords = attendance.filter(r => format(r.date, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd"))
@@ -179,13 +202,13 @@ export default function AdminAsistenciaPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Link href="/asistencia">
-                <Button variant="ghost" size="icon" className={`h-8 w-8 ${mutedText} hover:text-current`}>
+                <Button variant="ghost" size="icon" className={`h-8 w-8 ${mutedText}`}>
                   <ArrowLeft className="h-4 w-4" />
                 </Button>
               </Link>
               <div>
-                <h1 className="text-xl font-bold">Panel Admin - Asistencia</h1>
-                <p className={`text-xs ${mutedText}`}>DSG Peru Technology</p>
+                <h1 className="text-xl font-bold">Panel Administrador</h1>
+                <p className={`text-xs ${mutedText}`}>Gestion de Personal y Asistencia</p>
               </div>
             </div>
             <div className="flex items-center gap-4">
@@ -198,7 +221,7 @@ export default function AdminAsistenciaPage() {
                 {isDarkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
               </Button>
               <div className="text-right">
-                <p className="text-3xl font-light">{currentTime}</p>
+                <p className="text-2xl font-light">{currentTime}</p>
               </div>
             </div>
           </div>
@@ -210,70 +233,48 @@ export default function AdminAsistenciaPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           <Card className={`border ${cardBg}`}>
             <CardContent className="p-4">
-              <p className={`text-xs ${mutedText} uppercase mb-1`}>Total</p>
-              <p className="text-2xl font-light">{employees.length}</p>
+              <p className={`text-xs ${mutedText} uppercase mb-1`}>Total Personal</p>
+              <p className="text-2xl font-light flex items-center gap-2">
+                <Users className="w-5 h-5" />
+                {employees.length}
+              </p>
             </CardContent>
           </Card>
           <Card className={`border ${cardBg}`}>
             <CardContent className="p-4">
-              <p className="text-xs text-emerald-400 uppercase mb-1">Presentes</p>
-              <p className="text-2xl font-light text-emerald-400">{todayRecords.filter(r => r.status === "presente").length}</p>
+              <p className={`text-xs ${mutedText} uppercase mb-1`}>Empleados</p>
+              <p className="text-2xl font-light text-blue-400">
+                {employees.filter(e => e.type === "empleado").length}
+              </p>
             </CardContent>
           </Card>
           <Card className={`border ${cardBg}`}>
             <CardContent className="p-4">
-              <p className="text-xs text-amber-400 uppercase mb-1">Tarde</p>
-              <p className="text-2xl font-light text-amber-400">{todayRecords.filter(r => r.status === "tarde").length}</p>
+              <p className={`text-xs ${mutedText} uppercase mb-1`}>Practicantes</p>
+              <p className="text-2xl font-light text-purple-400">
+                {employees.filter(e => e.type === "practicante").length}
+              </p>
             </CardContent>
           </Card>
           <Card className={`border ${cardBg}`}>
             <CardContent className="p-4">
-              <p className="text-xs text-rose-400 uppercase mb-1">Ausentes</p>
-              <p className="text-2xl font-light text-rose-400">{employees.length - todayRecords.length}</p>
+              <p className={`text-xs ${mutedText} uppercase mb-1`}>Registros Hoy</p>
+              <p className="text-2xl font-light text-green-400">{todayRecords.length}</p>
             </CardContent>
           </Card>
         </div>
-
-        {/* Check In Section */}
-        <Card className={`border ${cardBg} mb-8`}>
-          <CardContent className="p-6">
-            <div className="flex flex-col md:flex-row gap-4 items-center">
-              <div className="flex-1 w-full">
-                <label className={`text-sm ${mutedText} mb-2 block`}>Colaborador</label>
-                <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
-                  <SelectTrigger className={`h-12 ${inputBg}`}>
-                    <SelectValue placeholder="Selecciona colaborador" />
-                  </SelectTrigger>
-                  <SelectContent className={inputBg}>
-                    {employees.map(emp => (
-                      <SelectItem key={emp.id} value={emp.id}>
-                        {emp.name} - {emp.type}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button 
-                onClick={handleCheckIn} 
-                disabled={!selectedEmployee}
-                size="lg"
-                className="h-12 px-8 bg-blue-600 hover:bg-blue-700"
-              >
-                <CheckCircle2 className="w-4 h-4 mr-2" />
-                Registrar Asistencia
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
 
         {/* Employees Table */}
         <Card className={`border ${cardBg}`}>
           <CardContent className="p-6">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-medium">Personal DSG</h2>
+              <h2 className="text-lg font-medium flex items-center gap-2">
+                <Users className="w-5 h-5" />
+                Personal Registrado
+              </h2>
               <div className="flex gap-3">
                 <Input 
-                  placeholder="Buscar..." 
+                  placeholder="Buscar por nombre o DNI..." 
                   className={`w-64 ${inputBg}`}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -289,38 +290,45 @@ export default function AdminAsistenciaPage() {
               <Table>
                 <TableHeader>
                   <TableRow className={`${tableBorder} hover:bg-transparent`}>
+                    <TableHead className={mutedText}>DNI</TableHead>
                     <TableHead className={mutedText}>Nombre</TableHead>
                     <TableHead className={mutedText}>Tipo</TableHead>
                     <TableHead className={mutedText}>Depto</TableHead>
-                    <TableHead className={mutedText}>Sueldo/Nota Max</TableHead>
-                    <TableHead className={mutedText}>Tarifa Tardanza</TableHead>
+                    <TableHead className={mutedText}>Horario</TableHead>
+                    <TableHead className={mutedText}>Sueldo/Nota</TableHead>
                     <TableHead className={mutedText}>Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredEmployees.map(emp => (
                     <TableRow key={emp.id} className={tableBorder}>
-                      <TableCell>{emp.name}</TableCell>
+                      <TableCell className="font-mono">{emp.dni}</TableCell>
+                      <TableCell className="font-medium">{emp.name}</TableCell>
                       <TableCell>
                         <Badge className={emp.type === "empleado" ? "bg-blue-600" : "bg-purple-600"}>
                           {emp.type}
                         </Badge>
                       </TableCell>
                       <TableCell className={mutedText}>{emp.department}</TableCell>
+                      <TableCell className={`text-xs ${mutedText}`}>
+                        <Clock className="w-3 h-3 inline mr-1" />
+                        {emp.checkInTime} - {emp.checkOutTime}
+                      </TableCell>
                       <TableCell>
                         {emp.type === "empleado" ? (
-                          <span className="text-emerald-400">S/. {emp.salary}</span>
+                          <span className="text-green-400 flex items-center gap-1">
+                            <DollarSign className="w-3 h-3" />
+                            S/. {emp.salary}
+                          </span>
                         ) : (
-                          <span className="text-purple-400">{emp.maxGrade} pts</span>
+                          <span className="text-purple-400 flex items-center gap-1">
+                            <GraduationCap className="w-3 h-3" />
+                            {emp.maxGrade} pts
+                          </span>
                         )}
                       </TableCell>
-                      <TableCell className={mutedText}>
-                        {emp.type === "empleado" 
-                          ? `S/. ${emp.latePenaltyRate}/min` 
-                          : `${emp.gradePenaltyRate} pt/min`}
-                      </TableCell>
                       <TableCell>
-                        <div className="flex gap-2">
+                        <div className="flex gap-1">
                           <Button variant="ghost" size="icon" className={`h-8 w-8 ${mutedText}`}>
                             <Pencil className="h-4 w-4" />
                           </Button>
@@ -336,6 +344,13 @@ export default function AdminAsistenciaPage() {
                       </TableCell>
                     </TableRow>
                   ))}
+                  {filteredEmployees.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={7} className={`text-center ${mutedText} py-8`}>
+                        No hay empleados registrados
+                      </TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
             </div>
@@ -345,24 +360,28 @@ export default function AdminAsistenciaPage() {
         {/* Attendance Records */}
         <Card className={`border ${cardBg} mt-8`}>
           <CardContent className="p-6">
-            <h2 className="text-lg font-medium mb-4">Registros de Hoy (General)</h2>
+            <h2 className="text-lg font-medium mb-4">Historial de Asistencia General</h2>
             <div className={`border ${tableBorder} rounded-lg overflow-hidden`}>
               <Table>
                 <TableHeader>
                   <TableRow className={`${tableBorder} hover:bg-transparent`}>
+                    <TableHead className={mutedText}>Fecha</TableHead>
                     <TableHead className={mutedText}>Colaborador</TableHead>
-                    <TableHead className={mutedText}>Hora</TableHead>
+                    <TableHead className={mutedText}>Entrada</TableHead>
                     <TableHead className={mutedText}>Estado</TableHead>
                     <TableHead className={mutedText}>Penalizacion</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {todayRecords.map(record => (
+                  {attendance.slice().reverse().slice(0, 20).map(record => (
                     <TableRow key={record.id} className={tableBorder}>
+                      <TableCell className={mutedText}>
+                        {format(record.date, "dd/MM/yyyy HH:mm")}
+                      </TableCell>
                       <TableCell>{record.employeeName}</TableCell>
-                      <TableCell className={mutedText}>{record.checkIn}</TableCell>
+                      <TableCell>{record.checkIn}</TableCell>
                       <TableCell>
-                        <Badge className={record.status === "presente" ? "bg-emerald-600" : "bg-amber-600"}>
+                        <Badge className={record.status === "presente" ? "bg-green-600" : "bg-yellow-600"}>
                           {record.status}
                         </Badge>
                       </TableCell>
@@ -377,10 +396,10 @@ export default function AdminAsistenciaPage() {
                       </TableCell>
                     </TableRow>
                   ))}
-                  {todayRecords.length === 0 && (
+                  {attendance.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={4} className={`text-center ${mutedText} py-8`}>
-                        No hay registros hoy
+                      <TableCell colSpan={5} className={`text-center ${mutedText} py-8`}>
+                        No hay registros de asistencia
                       </TableCell>
                     </TableRow>
                   )}
@@ -393,25 +412,199 @@ export default function AdminAsistenciaPage() {
 
       {/* Add Employee Dialog */}
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-        <DialogContent className={`${isDarkMode ? "bg-[#141414] border-[#2a2a2a] text-white" : "bg-white border-gray-200"}`}>
+        <DialogContent className={`${isDarkMode ? "bg-[#141414] border-[#2a2a2a] text-white" : "bg-white border-gray-200"} max-w-2xl max-h-[90vh] overflow-y-auto`}>
           <DialogHeader>
-            <DialogTitle>Nuevo Colaborador</DialogTitle>
+            <DialogTitle className="text-xl">Registrar Nuevo Colaborador</DialogTitle>
           </DialogHeader>
+          
           <div className="space-y-4 py-4">
-            <Input placeholder="Nombre completo" className={inputBg} />
-            <Select>
-              <SelectTrigger className={inputBg}>
-                <SelectValue placeholder="Tipo" />
-              </SelectTrigger>
-              <SelectContent className={inputBg}>
-                <SelectItem value="empleado">Empleado</SelectItem>
-                <SelectItem value="practicante">Practicante</SelectItem>
-              </SelectContent>
-            </Select>
-            <Input placeholder="Email" type="email" className={inputBg} />
-            <div className="flex justify-end gap-3">
-              <Button variant="outline" onClick={() => setIsAddOpen(false)}>Cancelar</Button>
-              <Button className="bg-blue-600 hover:bg-blue-700">Guardar</Button>
+            {/* Basic Info */}
+            <div className={`p-4 ${subCardBg} rounded-lg space-y-3`}>
+              <h4 className="font-medium text-sm">Informacion Basica</h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={`text-xs ${mutedText} mb-1 block`}>DNI *</label>
+                  <Input 
+                    placeholder="12345678" 
+                    value={newEmployee.dni || ""} 
+                    onChange={(e) => setNewEmployee({...newEmployee, dni: e.target.value})}
+                    className={inputBg}
+                    maxLength={8}
+                  />
+                </div>
+                <div>
+                  <label className={`text-xs ${mutedText} mb-1 block`}>Nombre Completo *</label>
+                  <Input 
+                    placeholder="Juan Perez" 
+                    value={newEmployee.name || ""} 
+                    onChange={(e) => setNewEmployee({...newEmployee, name: e.target.value})}
+                    className={inputBg}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={`text-xs ${mutedText} mb-1 block`}>Email *</label>
+                  <Input 
+                    type="email"
+                    placeholder="juan@dsg.pe" 
+                    value={newEmployee.email || ""} 
+                    onChange={(e) => setNewEmployee({...newEmployee, email: e.target.value})}
+                    className={inputBg}
+                  />
+                </div>
+                <div>
+                  <label className={`text-xs ${mutedText} mb-1 block`}>Departamento</label>
+                  <Select 
+                    value={newEmployee.department} 
+                    onValueChange={(val) => setNewEmployee({...newEmployee, department: val})}
+                  >
+                    <SelectTrigger className={inputBg}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className={inputBg}>
+                      {departments.map(d => (
+                        <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div>
+                <label className={`text-xs ${mutedText} mb-1 block`}>Tipo</label>
+                <Select 
+                  value={newEmployee.type} 
+                  onValueChange={(val: "empleado" | "practicante") => setNewEmployee({...newEmployee, type: val})}
+                >
+                  <SelectTrigger className={inputBg}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className={inputBg}>
+                    <SelectItem value="empleado">Empleado</SelectItem>
+                    <SelectItem value="practicante">Practicante</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Schedule */}
+            <div className={`p-4 ${subCardBg} rounded-lg space-y-3`}>
+              <h4 className="font-medium text-sm flex items-center gap-2">
+                <Clock className="w-4 h-4" />
+                Horario de Trabajo
+              </h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={`text-xs ${mutedText} mb-1 block`}>Hora Entrada</label>
+                  <Input 
+                    type="time"
+                    value={newEmployee.checkInTime} 
+                    onChange={(e) => setNewEmployee({...newEmployee, checkInTime: e.target.value})}
+                    className={inputBg}
+                  />
+                </div>
+                <div>
+                  <label className={`text-xs ${mutedText} mb-1 block`}>Hora Salida</label>
+                  <Input 
+                    type="time"
+                    value={newEmployee.checkOutTime} 
+                    onChange={(e) => setNewEmployee({...newEmployee, checkOutTime: e.target.value})}
+                    className={inputBg}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={`text-xs ${mutedText} mb-1 block`}>Inicio Receso</label>
+                  <Input 
+                    type="time"
+                    value={newEmployee.breakStartTime} 
+                    onChange={(e) => setNewEmployee({...newEmployee, breakStartTime: e.target.value})}
+                    className={inputBg}
+                  />
+                </div>
+                <div>
+                  <label className={`text-xs ${mutedText} mb-1 block`}>Fin Receso</label>
+                  <Input 
+                    type="time"
+                    value={newEmployee.breakEndTime} 
+                    onChange={(e) => setNewEmployee({...newEmployee, breakEndTime: e.target.value})}
+                    className={inputBg}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Salary / Grade Configuration */}
+            {newEmployee.type === "empleado" ? (
+              <div className={`p-4 ${subCardBg} rounded-lg space-y-3`}>
+                <h4 className="font-medium text-sm flex items-center gap-2">
+                  <DollarSign className="w-4 h-4" />
+                  Configuracion Salarial
+                </h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={`text-xs ${mutedText} mb-1 block`}>Sueldo Mensual (S/.)</label>
+                    <Input 
+                      type="number"
+                      placeholder="3500" 
+                      value={newEmployee.salary || ""} 
+                      onChange={(e) => setNewEmployee({...newEmployee, salary: Number(e.target.value)})}
+                      className={inputBg}
+                    />
+                  </div>
+                  <div>
+                    <label className={`text-xs ${mutedText} mb-1 block`}>Descuento por min tarde (S/.)</label>
+                    <Input 
+                      type="number"
+                      step="0.5"
+                      placeholder="2" 
+                      value={newEmployee.latePenaltyRate} 
+                      onChange={(e) => setNewEmployee({...newEmployee, latePenaltyRate: Number(e.target.value)})}
+                      className={inputBg}
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className={`p-4 ${subCardBg} rounded-lg space-y-3`}>
+                <h4 className="font-medium text-sm flex items-center gap-2">
+                  <GraduationCap className="w-4 h-4" />
+                  Configuracion de Nota
+                </h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={`text-xs ${mutedText} mb-1 block`}>Nota Maxima</label>
+                    <Input 
+                      type="number"
+                      placeholder="20" 
+                      value={newEmployee.maxGrade} 
+                      onChange={(e) => setNewEmployee({...newEmployee, maxGrade: Number(e.target.value)})}
+                      className={inputBg}
+                    />
+                  </div>
+                  <div>
+                    <label className={`text-xs ${mutedText} mb-1 block`}>Puntos por min tarde</label>
+                    <Input 
+                      type="number"
+                      step="0.5"
+                      placeholder="1" 
+                      value={newEmployee.gradePenaltyRate} 
+                      onChange={(e) => setNewEmployee({...newEmployee, gradePenaltyRate: Number(e.target.value)})}
+                      className={inputBg}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3 pt-2">
+              <Button variant="outline" onClick={() => setIsAddOpen(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleAddEmployee} className="bg-blue-600 hover:bg-blue-700">
+                Guardar Colaborador
+              </Button>
             </div>
           </div>
         </DialogContent>
@@ -424,12 +617,17 @@ export default function AdminAsistenciaPage() {
             <DialogTitle className="text-red-400">Eliminar Colaborador</DialogTitle>
           </DialogHeader>
           <p className={`${mutedText} py-4`}>
-            Esta seguro de eliminar a <strong className={isDarkMode ? "text-white" : "text-gray-900"}>{deletingEmployee?.name}</strong>?
-            Esta accion no se puede deshacer.
+            Esta seguro de eliminar a <strong className={isDarkMode ? "text-white" : "text-gray-900"}>{deletingEmployee?.name}</strong> (DNI: {deletingEmployee?.dni})?
+            <br />
+            Esta accion eliminara tambien todos sus registros de asistencia.
           </p>
           <div className="flex justify-end gap-3">
-            <Button variant="outline" onClick={() => setIsDeleteOpen(false)}>Cancelar</Button>
-            <Button variant="destructive" onClick={onDeleteEmployee}>Eliminar</Button>
+            <Button variant="outline" onClick={() => setIsDeleteOpen(false)}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={onDeleteEmployee}>
+              Eliminar
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

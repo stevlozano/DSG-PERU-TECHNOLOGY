@@ -4,9 +4,44 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Shield, User, GraduationCap, ArrowLeft, Moon, Sun } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { ArrowLeft, Moon, Sun, CheckCircle2, ExternalLink, Clock } from "lucide-react"
+import { format, parse } from "date-fns"
+import { es } from "date-fns/locale"
+
+interface Employee {
+  id: string
+  name: string
+  type: "empleado" | "practicante"
+  email: string
+  department: string
+  dni?: string
+  salary?: number
+  latePenaltyRate: number
+  checkInTime: string
+  checkOutTime: string
+  maxGrade: number
+  gradePenaltyRate: number
+}
+
+interface AttendanceRecord {
+  id: string
+  employeeId: string
+  employeeName: string
+  employeeType: "empleado" | "practicante"
+  date: Date
+  checkIn?: string
+  checkOut?: string
+  status: "presente" | "ausente" | "tarde"
+  lateMinutes?: number
+  penaltyAmount?: number
+  pointsDeducted?: number
+}
 
 export default function AsistenciaLandingPage() {
+  const [dni, setDni] = useState("")
+  const [currentTime, setCurrentTime] = useState(format(new Date(), "HH:mm"))
+  const [lastRegistration, setLastRegistration] = useState<{name: string, time: string, status: string} | null>(null)
   const [isDarkMode, setIsDarkMode] = useState(true)
 
   useEffect(() => {
@@ -14,6 +49,8 @@ export default function AsistenciaLandingPage() {
     if (saved) {
       setIsDarkMode(saved === "dark")
     }
+    const timer = setInterval(() => setCurrentTime(format(new Date(), "HH:mm")), 60000)
+    return () => clearInterval(timer)
   }, [])
 
   const toggleTheme = () => {
@@ -22,107 +59,193 @@ export default function AsistenciaLandingPage() {
     localStorage.setItem("asistencia-theme", newMode ? "dark" : "light")
   }
 
+  const handleCheckIn = () => {
+    if (dni.length < 8) return
+    
+    // Get employees from localStorage
+    const savedEmployees = localStorage.getItem("dsg-employees")
+    if (!savedEmployees) {
+      alert("No hay empleados registrados")
+      return
+    }
+    
+    const employees: Employee[] = JSON.parse(savedEmployees)
+    const employee = employees.find(emp => emp.dni === dni || emp.id === dni)
+    
+    if (!employee) {
+      alert("DNI no encontrado")
+      return
+    }
+    
+    const now = format(new Date(), "HH:mm")
+    const scheduled = parse(employee.checkInTime, "HH:mm", new Date())
+    const actual = parse(now, "HH:mm", new Date())
+    const isLate = actual > scheduled
+    
+    const lateMinutes = isLate 
+      ? Math.ceil((actual.getTime() - scheduled.getTime()) / (1000 * 60))
+      : 0
+    
+    const penaltyAmount = employee.type === "empleado" ? lateMinutes * employee.latePenaltyRate : 0
+    const pointsDeducted = employee.type === "practicante" ? lateMinutes * employee.gradePenaltyRate : 0
+
+    const newRecord: AttendanceRecord = {
+      id: Date.now().toString(),
+      employeeId: employee.id,
+      employeeName: employee.name,
+      employeeType: employee.type,
+      date: new Date(),
+      checkIn: now,
+      status: isLate ? "tarde" : "presente",
+      lateMinutes: isLate ? lateMinutes : undefined,
+      penaltyAmount: penaltyAmount || undefined,
+      pointsDeducted: pointsDeducted || undefined,
+    }
+    
+    // Save to localStorage
+    const savedAttendance = localStorage.getItem("dsg-attendance")
+    const allRecords = savedAttendance ? JSON.parse(savedAttendance) : []
+    allRecords.push(newRecord)
+    localStorage.setItem("dsg-attendance", JSON.stringify(allRecords))
+    
+    setLastRegistration({
+      name: employee.name,
+      time: now,
+      status: isLate ? "tarde" : "presente"
+    })
+    
+    setDni("")
+    alert(`Asistencia registrada: ${employee.name} - ${isLate ? "Tarde" : "Presente"}`)
+  }
+
   const bgClass = isDarkMode ? "bg-[#0a0a0a] text-white" : "bg-gray-50 text-gray-900"
   const cardBg = isDarkMode ? "bg-[#141414] border-[#2a2a2a]" : "bg-white border-gray-200"
+  const inputBg = isDarkMode ? "bg-[#1a1a1a] border-[#2a2a2a]" : "bg-white border-gray-300"
   const textColor = isDarkMode ? "text-gray-400" : "text-gray-600"
   const subText = isDarkMode ? "text-gray-500" : "text-gray-500"
+  const headerBg = isDarkMode ? "bg-[#141414] border-[#2a2a2a]" : "bg-white border-gray-200"
 
   return (
     <div className={`min-h-screen ${bgClass} flex flex-col`}>
-      <header className={`border-b ${isDarkMode ? "border-[#2a2a2a]" : "border-gray-200"}`}>
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Link href="/">
-                <Button variant="ghost" size="icon" className={`h-8 w-8 ${isDarkMode ? "text-gray-400 hover:text-white" : "text-gray-600 hover:text-gray-900"}`}>
-                  <ArrowLeft className="h-4 w-4" />
-                </Button>
-              </Link>
-              <div>
-                <h1 className="text-xl font-bold">Portal de Asistencia</h1>
-                <p className={`text-xs ${textColor}`}>DSG Peru Technology</p>
-              </div>
-            </div>
+      {/* Top Bar with Admin Access */}
+      <div className={`${headerBg} border-b px-4 py-3`}>
+        <div className="container mx-auto flex items-center justify-between">
+          <Link href="/">
+            <Button variant="ghost" size="sm" className={textColor}>
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Volver a Inicio
+            </Button>
+          </Link>
+          <div className="flex items-center gap-3">
             <Button
               variant="ghost"
               size="icon"
               onClick={toggleTheme}
-              className={isDarkMode ? "text-gray-400 hover:text-white" : "text-gray-600 hover:text-gray-900"}
+              className={textColor}
             >
               {isDarkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
             </Button>
+            <Link href="/asistencia/admin">
+              <Button variant="outline" size="sm" className="gap-2">
+                <ExternalLink className="w-4 h-4" />
+                Acceso Admin / Portales
+              </Button>
+            </Link>
           </div>
         </div>
-      </header>
+      </div>
 
-      <main className="flex-1 flex items-center justify-center p-4">
-        <div className="w-full max-w-4xl">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold mb-3">Selecciona tu perfil</h2>
-            <p className="text-gray-400">Elige el portal correspondiente a tu rol en la empresa</p>
+      <main className="flex-1 flex flex-col items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          {/* Welcome Message */}
+          <div className="text-center mb-8">
+            <h1 className="text-3xl md:text-4xl font-bold mb-2">
+              BIENVENIDOS A
+            </h1>
+            <h2 className="text-2xl md:text-3xl font-bold text-blue-500">
+              ASISTENCIA DSG
+            </h2>
+            <p className={`${subText} mt-2`}>PERU TECHNOLOGY</p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Admin / Ingeniero */}
-            <Link href="/asistencia/admin">
-              <Card className={`${cardBg} hover:border-blue-600 transition-all cursor-pointer group h-full`}>
-                <CardContent className="p-8 flex flex-col items-center text-center">
-                  <div className="w-16 h-16 rounded-full bg-blue-600/20 flex items-center justify-center mb-4 group-hover:bg-blue-600/30 transition-colors">
-                    <Shield className="w-8 h-8 text-blue-500" />
-                  </div>
-                  <h3 className="text-xl font-bold mb-2">Administrador</h3>
-                  <p className={`text-sm ${textColor} mb-4`}>
-                    Portal del ingeniero para gestionar personal, sueldos, y configurar el sistema de asistencia.
-                  </p>
-                  <Button className="w-full bg-blue-600 hover:bg-blue-700">
-                    Acceder
-                  </Button>
-                </CardContent>
-              </Card>
-            </Link>
-
-            {/* Empleado */}
-            <Link href="/asistencia/empleado">
-              <Card className={`${cardBg} hover:border-green-600 transition-all cursor-pointer group h-full`}>
-                <CardContent className="p-8 flex flex-col items-center text-center">
-                  <div className="w-16 h-16 rounded-full bg-green-600/20 flex items-center justify-center mb-4 group-hover:bg-green-600/30 transition-colors">
-                    <User className="w-8 h-8 text-green-500" />
-                  </div>
-                  <h3 className="text-xl font-bold mb-2">Empleado</h3>
-                  <p className={`text-sm ${textColor} mb-4`}>
-                    Portal para personal contratado. Ver su sueldo, descuentos por tardanzas y registrar asistencia.
-                  </p>
-                  <Button className="w-full bg-green-600 hover:bg-green-700">
-                    Acceder
-                  </Button>
-                </CardContent>
-              </Card>
-            </Link>
-
-            {/* Practicante */}
-            <Link href="/asistencia/practicante">
-              <Card className={`${cardBg} hover:border-purple-600 transition-all cursor-pointer group h-full`}>
-                <CardContent className="p-8 flex flex-col items-center text-center">
-                  <div className="w-16 h-16 rounded-full bg-purple-600/20 flex items-center justify-center mb-4 group-hover:bg-purple-600/30 transition-colors">
-                    <GraduationCap className="w-8 h-8 text-purple-500" />
-                  </div>
-                  <h3 className="text-xl font-bold mb-2">Practicante</h3>
-                  <p className={`text-sm ${textColor} mb-4`}>
-                    Portal para practicantes. Ver tu nota actual, puntos perdidos por tardanzas y registrar asistencia.
-                  </p>
-                  <Button className="w-full bg-purple-600 hover:bg-purple-700">
-                    Acceder
-                  </Button>
-                </CardContent>
-              </Card>
-            </Link>
-          </div>
-
-          <div className="mt-12 text-center">
+          {/* Time Display */}
+          <div className={`text-center mb-6 p-4 ${cardBg} rounded-lg`}>
+            <Clock className={`w-6 h-6 ${textColor} mx-auto mb-2`} />
+            <p className="text-4xl font-light">{currentTime}</p>
             <p className={`text-sm ${subText}`}>
-              Sistema de Asistencia DSG v2.0
+              {format(new Date(), "EEEE, d 'de' MMMM, yyyy", { locale: es })}
             </p>
           </div>
+
+          {/* Check-in Form */}
+          <Card className={cardBg}>
+            <CardContent className="p-6">
+              <h3 className="text-lg font-medium text-center mb-4">
+                Registrar Asistencia
+              </h3>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className={`text-sm ${textColor} mb-2 block`}>
+                    Ingrese su DNI
+                  </label>
+                  <Input
+                    type="text"
+                    placeholder="12345678"
+                    value={dni}
+                    onChange={(e) => setDni(e.target.value)}
+                    maxLength={8}
+                    className={`${inputBg} text-center text-lg tracking-widest h-14`}
+                  />
+                </div>
+                
+                <Button 
+                  onClick={handleCheckIn}
+                  className="w-full h-14 text-lg bg-green-600 hover:bg-green-700"
+                  disabled={dni.length < 8}
+                >
+                  <CheckCircle2 className="w-5 h-5 mr-2" />
+                  Registrar Entrada
+                </Button>
+              </div>
+
+              {lastRegistration && (
+                <div className={`mt-4 p-3 ${isDarkMode ? "bg-green-950/30" : "bg-green-50"} border border-green-600/30 rounded-lg`}>
+                  <p className="text-green-400 text-sm text-center">
+                    Último registro: <strong>{lastRegistration.name}</strong> a las {lastRegistration.time}
+                    <br />
+                    <span className={lastRegistration.status === "tarde" ? "text-yellow-400" : "text-green-400"}>
+                      Estado: {lastRegistration.status === "tarde" ? "Tarde" : "Presente"}
+                    </span>
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Info Cards */}
+          <div className="grid grid-cols-2 gap-4 mt-6">
+            <Link href="/asistencia/empleado">
+              <Card className={`${cardBg} hover:border-green-600 transition-all cursor-pointer`}>
+                <CardContent className="p-4 text-center">
+                  <p className="font-medium text-sm">Portal Empleados</p>
+                  <p className={`text-xs ${subText} mt-1`}>Ver sueldo y historial</p>
+                </CardContent>
+              </Card>
+            </Link>
+            <Link href="/asistencia/practicante">
+              <Card className={`${cardBg} hover:border-purple-600 transition-all cursor-pointer`}>
+                <CardContent className="p-4 text-center">
+                  <p className="font-medium text-sm">Portal Practicantes</p>
+                  <p className={`text-xs ${subText} mt-1`}>Ver nota y asistencia</p>
+                </CardContent>
+              </Card>
+            </Link>
+          </div>
+
+          <p className={`text-center text-xs ${subText} mt-8`}>
+            Sistema de Asistencia DSG v2.0
+          </p>
         </div>
       </main>
     </div>
