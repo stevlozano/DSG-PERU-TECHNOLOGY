@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Checkbox } from "@/components/ui/checkbox"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
-import { ArrowLeft, UserPlus, Pencil, Trash2, DollarSign, GraduationCap, Clock, Moon, Sun, Users, Calendar, Save } from "lucide-react"
+import { ArrowLeft, UserPlus, Pencil, Trash2, DollarSign, GraduationCap, Clock, Moon, Sun, Users, Calendar, Save, LogOut } from "lucide-react"
 
 interface Schedule {
   name: string
@@ -84,6 +84,11 @@ export default function AdminAsistenciaPage() {
     const newMode = !isDarkMode
     setIsDarkMode(newMode)
     localStorage.setItem("asistencia-theme", newMode ? "dark" : "light")
+  }
+
+  const handleLogout = () => {
+    localStorage.removeItem("dsg-asistencia-auth")
+    window.location.href = "/asistencia"
   }
 
   const bgClass = isDarkMode ? "bg-[#0a0a0a] text-white" : "bg-gray-50 text-gray-900"
@@ -280,6 +285,15 @@ export default function AdminAsistenciaPage() {
             <div className="flex items-center gap-4">
               <Button variant="ghost" size="icon" onClick={toggleTheme} className={mutedText}>
                 {isDarkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={handleLogout} 
+                className={`${mutedText} gap-2`}
+              >
+                <LogOut className="h-4 w-4" />
+                <span className="hidden sm:inline">Salir</span>
               </Button>
               <div className="text-right">
                 <p className="text-2xl font-light">{currentTime}</p>

@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { format, parse, isSameDay } from "date-fns"
 import { es } from "date-fns/locale"
-import { ArrowLeft, LogIn, GraduationCap, Clock, CalendarDays, Moon, Sun, AlertTriangle, CheckCircle2 } from "lucide-react"
+import { ArrowLeft, LogIn, GraduationCap, Clock, CalendarDays, Moon, Sun, AlertTriangle, CheckCircle2, LogOut } from "lucide-react"
 
 interface Schedule {
   name: string
@@ -69,6 +69,14 @@ export default function PracticanteAsistenciaPage() {
     const newMode = !isDarkMode
     setIsDarkMode(newMode)
     localStorage.setItem("asistencia-theme", newMode ? "dark" : "light")
+  }
+
+  const handleLogout = () => {
+    localStorage.removeItem("dsg-asistencia-auth")
+    setIsAuthenticated(false)
+    setCurrentPracticante(null)
+    setDni("")
+    window.location.href = "/asistencia"
   }
 
   const bgClass = isDarkMode ? "bg-[#0a0a0a] text-white" : "bg-gray-50 text-gray-900"
@@ -280,6 +288,15 @@ export default function PracticanteAsistenciaPage() {
             <div className="flex items-center gap-4">
               <Button variant="ghost" size="icon" onClick={toggleTheme} className={mutedText}>
                 {isDarkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={handleLogout}
+                className={`${mutedText} gap-2`}
+              >
+                <LogOut className="h-4 w-4" />
+                <span className="hidden sm:inline">Salir</span>
               </Button>
               <div className="text-right">
                 <p className="text-3xl font-light">{currentTime}</p>

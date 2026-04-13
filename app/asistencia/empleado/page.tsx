@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { format, parse, isSameDay } from "date-fns"
 import { es } from "date-fns/locale"
-import { ArrowLeft, LogIn, DollarSign, Clock, CalendarDays, Moon, Sun } from "lucide-react"
+import { ArrowLeft, LogIn, DollarSign, Clock, CalendarDays, Moon, Sun, LogOut } from "lucide-react"
 
 interface AttendanceRecord {
   id: string
@@ -56,6 +56,14 @@ export default function EmpleadoAsistenciaPage() {
     const newMode = !isDarkMode
     setIsDarkMode(newMode)
     localStorage.setItem("asistencia-theme", newMode ? "dark" : "light")
+  }
+
+  const handleLogout = () => {
+    localStorage.removeItem("dsg-asistencia-auth")
+    setIsAuthenticated(false)
+    setCurrentEmployee(null)
+    setDni("")
+    window.location.href = "/asistencia"
   }
 
   // Theme classes
@@ -241,6 +249,15 @@ export default function EmpleadoAsistenciaPage() {
                 className={mutedText}
               >
                 {isDarkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={handleLogout}
+                className={`${mutedText} gap-2`}
+              >
+                <LogOut className="h-4 w-4" />
+                <span className="hidden sm:inline">Salir</span>
               </Button>
               <div className="text-right">
                 <p className="text-3xl font-light">{currentTime}</p>
