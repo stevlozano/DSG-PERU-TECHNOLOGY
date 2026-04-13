@@ -40,7 +40,7 @@ interface Employee {
   checkInTime: string
   checkOutTime: string
   dni?: string
-  type: string
+  type: "empleado" | "practicante"
   availableSchedules?: Schedule[]
   selectedSchedule?: Schedule
   flexibleSchedule?: boolean
