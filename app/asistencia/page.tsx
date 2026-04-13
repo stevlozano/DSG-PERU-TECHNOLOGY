@@ -12,19 +12,28 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
-import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfDay, endOfDay, isWithinInterval } from "date-fns"
+import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfDay, endOfDay, isWithinInterval, parse, addMinutes } from "date-fns"
 import { es } from "date-fns/locale"
-import { CalendarDays, Users, Clock, UserPlus, History, CheckCircle2, ArrowLeft, Search } from "lucide-react"
+import { CalendarDays, Users, Clock, UserPlus, History, CheckCircle2, ArrowLeft, Search, Pencil, Trash2, DollarSign, GraduationCap } from "lucide-react"
 
 const employeeSchema = z.object({
   id: z.string().optional(),
   name: z.string().min(2, "El nombre debe tener al menos 2 caracteres"),
   type: z.enum(["empleado", "practicante"]),
-  email: z.string().email("Email inválido"),
+  email: z.string().email("Email invalido"),
   department: z.string().min(1, "Seleccione un departamento"),
+  salary: z.coerce.number().min(0).optional(),
+  latePenaltyRate: z.coerce.number().min(0).default(2),
+  checkInTime: z.string().default("08:00"),
+  checkOutTime: z.string().default("19:00"),
+  breakStartTime: z.string().default("13:00"),
+  breakEndTime: z.string().default("15:00"),
+  maxGrade: z.coerce.number().min(0).max(20).default(20),
+  gradePenaltyRate: z.coerce.number().min(0).default(1),
 })
 
 interface Employee {
@@ -33,6 +42,15 @@ interface Employee {
   type: "empleado" | "practicante"
   email: string
   department: string
+  salary?: number
+  latePenaltyRate: number
+  checkInTime: string
+  checkOutTime: string
+  breakStartTime: string
+  breakEndTime: string
+  maxGrade: number
+  gradePenaltyRate: number
+  currentGrade?: number
 }
 
 interface AttendanceRecord {
@@ -46,10 +64,13 @@ interface AttendanceRecord {
   breakStart?: string
   breakEnd?: string
   status: "presente" | "ausente" | "tarde"
+  lateMinutes?: number
+  penaltyAmount?: number
+  pointsDeducted?: number
 }
 
 const departments = [
-  { value: "TI", label: "Tecnología" },
+  { value: "TI", label: "Tecnologia" },
   { value: "Marketing", label: "Marketing" },
   { value: "Ventas", label: "Ventas" },
   { value: "RRHH", label: "Recursos Humanos" },
@@ -60,15 +81,57 @@ const departments = [
 export default function AsistenciaPage() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
   const [employees, setEmployees] = useState<Employee[]>([
-    { id: "1", name: "Juan Pérez", type: "empleado", email: "juan@dsg.pe", department: "TI" },
-    { id: "2", name: "María García", type: "practicante", email: "maria@dsg.pe", department: "Marketing" },
-    { id: "3", name: "Carlos López", type: "empleado", email: "carlos@dsg.pe", department: "Ventas" },
+    { 
+      id: "1", 
+      name: "Juan Perez", 
+      type: "empleado", 
+      email: "juan@dsg.pe", 
+      department: "TI",
+      salary: 3500,
+      latePenaltyRate: 2,
+      checkInTime: "08:00",
+      checkOutTime: "19:00",
+      breakStartTime: "13:00",
+      breakEndTime: "15:00",
+      maxGrade: 20,
+      gradePenaltyRate: 1
+    },
+    { 
+      id: "2", 
+      name: "Maria Garcia", 
+      type: "practicante", 
+      email: "maria@dsg.pe", 
+      department: "Marketing",
+      latePenaltyRate: 2,
+      checkInTime: "09:00",
+      checkOutTime: "13:00",
+      breakStartTime: "13:00",
+      breakEndTime: "15:00",
+      maxGrade: 20,
+      gradePenaltyRate: 1
+    },
+    { 
+      id: "3", 
+      name: "Carlos Lopez", 
+      type: "empleado", 
+      email: "carlos@dsg.pe", 
+      department: "Ventas",
+      salary: 2800,
+      latePenaltyRate: 2,
+      checkInTime: "08:00",
+      checkOutTime: "19:00",
+      breakStartTime: "13:00",
+      breakEndTime: "15:00",
+      maxGrade: 20,
+      gradePenaltyRate: 1
+    },
   ])
-  const [attendance, setAttendance] = useState<AttendanceRecord[]>([
-    { id: "1", employeeId: "1", employeeName: "Juan Pérez", employeeType: "empleado", date: new Date(), checkIn: "08:00", breakStart: "13:00", breakEnd: "15:00", checkOut: "19:00", status: "presente" },
-    { id: "2", employeeId: "2", employeeName: "María García", employeeType: "practicante", date: new Date(), checkIn: "09:00", checkOut: "13:00", status: "presente" },
-  ])
+  const [attendance, setAttendance] = useState<AttendanceRecord[]>([])
   const [isAddEmployeeOpen, setIsAddEmployeeOpen] = useState(false)
+  const [isEditEmployeeOpen, setIsEditEmployeeOpen] = useState(false)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null)
+  const [deletingEmployee, setDeletingEmployee] = useState<Employee | null>(null)
   const [filterType, setFilterType] = useState<"dia" | "semana" | "mes">("dia")
   const [selectedEmployee, setSelectedEmployee] = useState<string>("")
   const [searchTerm, setSearchTerm] = useState("")
@@ -82,7 +145,19 @@ export default function AsistenciaPage() {
       type: "empleado",
       email: "",
       department: "",
+      salary: 0,
+      latePenaltyRate: 2,
+      checkInTime: "08:00",
+      checkOutTime: "19:00",
+      breakStartTime: "13:00",
+      breakEndTime: "15:00",
+      maxGrade: 20,
+      gradePenaltyRate: 1,
     },
+  })
+
+  const editForm = useForm<Employee>({
+    resolver: zodResolver(employeeSchema),
   })
 
   useEffect(() => {
@@ -92,12 +167,57 @@ export default function AsistenciaPage() {
     return () => clearInterval(timer)
   }, [])
 
+  const calculateLateMinutes = (checkInTime: string, scheduledTime: string): number => {
+    const checkIn = parse(checkInTime, "HH:mm", new Date())
+    const scheduled = parse(scheduledTime, "HH:mm", new Date())
+    if (checkIn <= scheduled) return 0
+    const diffMs = checkIn.getTime() - scheduled.getTime()
+    return Math.ceil(diffMs / (1000 * 60))
+  }
+
+  const calculatePenalty = (record: AttendanceRecord, employee: Employee): Partial<AttendanceRecord> => {
+    if (!record.checkIn || record.status !== "tarde") {
+      return { lateMinutes: 0, penaltyAmount: 0, pointsDeducted: 0 }
+    }
+    const lateMinutes = calculateLateMinutes(record.checkIn, employee.checkInTime)
+    if (employee.type === "empleado") {
+      const penaltyAmount = lateMinutes * (employee.latePenaltyRate || 2)
+      return { lateMinutes, penaltyAmount, pointsDeducted: 0 }
+    } else {
+      const pointsDeducted = lateMinutes * (employee.gradePenaltyRate || 1)
+      return { lateMinutes, penaltyAmount: 0, pointsDeducted }
+    }
+  }
+
+  const calculateCurrentGrade = (employee: Employee): number => {
+    if (employee.type !== "practicante") return 0
+    const today = format(new Date(), "yyyy-MM-dd")
+    const employeeRecords = attendance.filter(
+      r => r.employeeId === employee.id && format(r.date, "yyyy-MM-dd") <= today
+    )
+    let totalPointsLost = 0
+    employeeRecords.forEach(record => {
+      if (record.pointsDeducted) {
+        totalPointsLost += record.pointsDeducted
+      }
+    })
+    return Math.max(0, (employee.maxGrade || 20) - totalPointsLost)
+  }
+
   const handleCheckIn = () => {
     if (!selectedEmployee) return
-    
     const today = format(new Date(), "yyyy-MM-dd")
     const employee = employees.find(e => e.id === selectedEmployee)
     if (!employee) return
+    
+    const scheduledCheckIn = employee.checkInTime
+    const scheduledCheckOut = employee.checkOutTime
+    const scheduledBreakStart = employee.breakStartTime
+    const scheduledBreakEnd = employee.breakEndTime
+    
+    const checkInDate = parse(scheduledCheckIn, "HH:mm", new Date())
+    const checkInWithToleranceDate = addMinutes(checkInDate, 5)
+    const checkInWithTolerance = format(checkInWithToleranceDate, "HH:mm")
     
     const existingRecord = attendance.find(
       record => record.employeeId === selectedEmployee && format(record.date, "yyyy-MM-dd") === today
@@ -105,31 +225,42 @@ export default function AsistenciaPage() {
     
     if (existingRecord) {
       const updatedRecord = { ...existingRecord }
-      
       if (employee.type === "empleado") {
         if (!existingRecord.checkIn) {
           updatedRecord.checkIn = currentTime
-          updatedRecord.status = currentTime > "08:05" ? "tarde" : "presente"
-        } else if (!existingRecord.breakStart && currentTime >= "13:00") {
+          updatedRecord.status = currentTime > checkInWithTolerance ? "tarde" : "presente"
+          if (updatedRecord.status === "tarde") {
+            const penalty = calculatePenalty(updatedRecord as AttendanceRecord, employee)
+            updatedRecord.lateMinutes = penalty.lateMinutes
+            updatedRecord.penaltyAmount = penalty.penaltyAmount
+            updatedRecord.pointsDeducted = penalty.pointsDeducted
+          }
+        } else if (!existingRecord.breakStart && currentTime >= scheduledBreakStart) {
           updatedRecord.breakStart = currentTime
-        } else if (!existingRecord.breakEnd && currentTime >= "15:00") {
+        } else if (!existingRecord.breakEnd && currentTime >= scheduledBreakEnd) {
           updatedRecord.breakEnd = currentTime
-        } else if (!existingRecord.checkOut && currentTime >= "19:00") {
+        } else if (!existingRecord.checkOut && currentTime >= scheduledCheckOut) {
           updatedRecord.checkOut = currentTime
         }
       } else {
         if (!existingRecord.checkIn) {
           updatedRecord.checkIn = currentTime
-          updatedRecord.status = currentTime > "09:05" ? "tarde" : "presente"
-        } else if (!existingRecord.checkOut && currentTime >= "13:00") {
+          updatedRecord.status = currentTime > checkInWithTolerance ? "tarde" : "presente"
+          if (updatedRecord.status === "tarde") {
+            const penalty = calculatePenalty(updatedRecord as AttendanceRecord, employee)
+            updatedRecord.lateMinutes = penalty.lateMinutes
+            updatedRecord.penaltyAmount = penalty.penaltyAmount
+            updatedRecord.pointsDeducted = penalty.pointsDeducted
+          }
+        } else if (!existingRecord.checkOut && currentTime >= scheduledCheckOut) {
           updatedRecord.checkOut = currentTime
         }
       }
-      
       setAttendance(attendance.map(record => 
         record.id === existingRecord.id ? updatedRecord : record
       ))
     } else {
+      const isLate = currentTime > checkInWithTolerance
       const newRecord: AttendanceRecord = {
         id: Date.now().toString(),
         employeeId: selectedEmployee,
@@ -137,41 +268,96 @@ export default function AsistenciaPage() {
         employeeType: employee.type,
         date: new Date(),
         checkIn: currentTime,
-        status: employee.type === "empleado" 
-          ? (currentTime > "08:05" ? "tarde" : "presente")
-          : (currentTime > "09:05" ? "tarde" : "presente")
+        status: isLate ? "tarde" : "presente"
+      }
+      if (isLate) {
+        const penalty = calculatePenalty(newRecord, employee)
+        newRecord.lateMinutes = penalty.lateMinutes
+        newRecord.penaltyAmount = penalty.penaltyAmount
+        newRecord.pointsDeducted = penalty.pointsDeducted
       }
       setAttendance([...attendance, newRecord])
     }
   }
 
   const onAddEmployee = (data: Employee) => {
-    const newEmployee = { ...data, id: Date.now().toString() }
+    const newEmployee: Employee = {
+      ...data,
+      id: Date.now().toString(),
+      latePenaltyRate: Number(data.latePenaltyRate) || 2,
+      checkInTime: data.checkInTime || "08:00",
+      checkOutTime: data.checkOutTime || "19:00",
+      breakStartTime: data.breakStartTime || "13:00",
+      breakEndTime: data.breakEndTime || "15:00",
+      maxGrade: Number(data.maxGrade) || 20,
+      gradePenaltyRate: Number(data.gradePenaltyRate) || 1,
+    }
     setEmployees([...employees, newEmployee])
     setIsAddEmployeeOpen(false)
     form.reset()
   }
 
+  const onEditEmployee = (data: Employee) => {
+    if (!editingEmployee) return
+    const updatedEmployee: Employee = {
+      ...data,
+      id: editingEmployee.id,
+      latePenaltyRate: Number(data.latePenaltyRate) || 2,
+      checkInTime: data.checkInTime || "08:00",
+      checkOutTime: data.checkOutTime || "19:00",
+      breakStartTime: data.breakStartTime || "13:00",
+      breakEndTime: data.breakEndTime || "15:00",
+      maxGrade: Number(data.maxGrade) || 20,
+      gradePenaltyRate: Number(data.gradePenaltyRate) || 1,
+    }
+    setEmployees(employees.map(emp => emp.id === editingEmployee.id ? updatedEmployee : emp))
+    setIsEditEmployeeOpen(false)
+    setEditingEmployee(null)
+    editForm.reset()
+  }
+
+  const onDeleteEmployee = () => {
+    if (!deletingEmployee) return
+    setEmployees(employees.filter(emp => emp.id !== deletingEmployee.id))
+    setAttendance(attendance.filter(record => record.employeeId !== deletingEmployee.id))
+    setIsDeleteDialogOpen(false)
+    setDeletingEmployee(null)
+  }
+
+  const openEditDialog = (employee: Employee) => {
+    setEditingEmployee(employee)
+    editForm.reset({
+      ...employee,
+      salary: employee.salary || 0,
+      latePenaltyRate: employee.latePenaltyRate || 2,
+      maxGrade: employee.maxGrade || 20,
+      gradePenaltyRate: employee.gradePenaltyRate || 1,
+    })
+    setIsEditEmployeeOpen(true)
+  }
+
+  const openDeleteDialog = (employee: Employee) => {
+    setDeletingEmployee(employee)
+    setIsDeleteDialogOpen(true)
+  }
+
   const getCheckButtonText = () => {
     if (!selectedEmployee) return "Selecciona tu nombre"
-    
     const today = format(new Date(), "yyyy-MM-dd")
     const record = attendance.find(
       r => r.employeeId === selectedEmployee && format(r.date, "yyyy-MM-dd") === today
     )
     const employee = employees.find(e => e.id === selectedEmployee)
-    
     if (!record) return "Registrar entrada"
-    
     if (employee?.type === "empleado") {
       if (!record.checkIn) return "Registrar entrada"
-      if (!record.breakStart && currentTime >= "13:00") return "Inicio receso"
-      if (!record.breakEnd && currentTime >= "15:00") return "Fin receso"
-      if (!record.checkOut && currentTime >= "19:00") return "Registrar salida"
+      if (!record.breakStart && currentTime >= employee.breakStartTime) return "Inicio receso"
+      if (!record.breakEnd && currentTime >= employee.breakEndTime) return "Fin receso"
+      if (!record.checkOut && currentTime >= employee.checkOutTime) return "Registrar salida"
       return "Registro completo"
     } else {
       if (!record.checkIn) return "Registrar entrada"
-      if (!record.checkOut && currentTime >= "13:00") return "Registrar salida"
+      if (!record.checkOut && currentTime >= employee.checkOutTime) return "Registrar salida"
       return "Registro completo"
     }
   }
@@ -180,7 +366,6 @@ export default function AsistenciaPage() {
     const now = new Date()
     let startDate: Date
     let endDate: Date
-
     switch (filterType) {
       case "dia":
         startDate = startOfDay(now)
@@ -198,7 +383,6 @@ export default function AsistenciaPage() {
         startDate = startOfDay(now)
         endDate = endOfDay(now)
     }
-
     return attendance.filter(record => 
       isWithinInterval(record.date, { start: startDate, end: endDate })
     )
@@ -224,7 +408,6 @@ export default function AsistenciaPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header minimalista */}
       <header className="border-b">
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
@@ -247,7 +430,6 @@ export default function AsistenciaPage() {
       </header>
 
       <main className="container mx-auto px-6 py-8">
-        {/* Stats minimalistas */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           <Card className="border-0 shadow-none bg-muted/50">
             <CardContent className="p-4">
@@ -276,7 +458,6 @@ export default function AsistenciaPage() {
           </Card>
         </div>
 
-        {/* Registro rápido */}
         <section className="mb-8">
           <Card className="border">
             <CardContent className="p-6">
@@ -317,7 +498,6 @@ export default function AsistenciaPage() {
           </Card>
         </section>
 
-        {/* Tabs contenido */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="w-full justify-start bg-transparent border-b rounded-none h-auto p-0 gap-8">
             <TabsTrigger 
@@ -362,9 +542,9 @@ export default function AsistenciaPage() {
                     <TableHead className="font-medium">Colaborador</TableHead>
                     <TableHead className="font-medium">Fecha</TableHead>
                     <TableHead className="font-medium">Entrada</TableHead>
-                    <TableHead className="font-medium">Receso</TableHead>
                     <TableHead className="font-medium">Salida</TableHead>
                     <TableHead className="font-medium">Estado</TableHead>
+                    <TableHead className="font-medium">Penalizacion</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -375,11 +555,11 @@ export default function AsistenciaPage() {
                         <div className="text-xs text-muted-foreground">{record.employeeType}</div>
                       </TableCell>
                       <TableCell className="text-muted-foreground">{format(record.date, "dd/MM/yyyy")}</TableCell>
-                      <TableCell>{record.checkIn || "—"}</TableCell>
                       <TableCell>
-                        {record.breakStart ? (
-                          <span className="text-xs">{record.breakStart} - {record.breakEnd || "..."}</span>
-                        ) : "—"}
+                        {record.checkIn || "—"}
+                        {record.lateMinutes && record.lateMinutes > 0 && (
+                          <span className="text-xs text-red-600 block">+{record.lateMinutes} min tarde</span>
+                        )}
                       </TableCell>
                       <TableCell>{record.checkOut || "—"}</TableCell>
                       <TableCell>
@@ -390,12 +570,27 @@ export default function AsistenciaPage() {
                           {record.status}
                         </Badge>
                       </TableCell>
+                      <TableCell>
+                        {record.status === "tarde" && record.employeeType === "empleado" && record.penaltyAmount ? (
+                          <div className="flex items-center gap-1 text-red-600 text-sm">
+                            <DollarSign className="w-3 h-3" />
+                            <span className="font-medium">- S/. {record.penaltyAmount.toFixed(2)}</span>
+                          </div>
+                        ) : record.status === "tarde" && record.employeeType === "practicante" && record.pointsDeducted ? (
+                          <div className="flex items-center gap-1 text-amber-600 text-sm">
+                            <GraduationCap className="w-3 h-3" />
+                            <span className="font-medium">- {record.pointsDeducted.toFixed(1)} pts</span>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">—</span>
+                        )}
+                      </TableCell>
                     </TableRow>
                   ))}
                   {getFilteredAttendance().length === 0 && (
                     <TableRow>
                       <TableCell colSpan={6} className="text-center text-muted-foreground py-12">
-                        No hay registros para el período seleccionado
+                        No hay registros para el periodo seleccionado
                       </TableCell>
                     </TableRow>
                   )}
@@ -454,6 +649,21 @@ export default function AsistenciaPage() {
                               <span>{record.checkOut || "—"}</span>
                             </div>
                           </div>
+                          {record.status === "tarde" && (
+                            <div className="mt-2 pt-2 border-t">
+                              {record.employeeType === "empleado" && record.penaltyAmount ? (
+                                <div className="flex items-center gap-1 text-red-600 text-sm">
+                                  <DollarSign className="w-3 h-3" />
+                                  <span>Descuento: S/. {record.penaltyAmount.toFixed(2)}</span>
+                                </div>
+                              ) : record.employeeType === "practicante" && record.pointsDeducted ? (
+                                <div className="flex items-center gap-1 text-amber-600 text-sm">
+                                  <GraduationCap className="w-3 h-3" />
+                                  <span>Puntos perdidos: {record.pointsDeducted.toFixed(1)}</span>
+                                </div>
+                              ) : null}
+                            </div>
+                          )}
                         </CardContent>
                       </Card>
                     ))}
@@ -495,31 +705,76 @@ export default function AsistenciaPage() {
                     <TableHead className="font-medium">Nombre</TableHead>
                     <TableHead className="font-medium">Tipo</TableHead>
                     <TableHead className="font-medium">Departamento</TableHead>
-                    <TableHead className="font-medium">Email</TableHead>
-                    <TableHead className="font-medium">Estado</TableHead>
+                    <TableHead className="font-medium">Sueldo/Nota</TableHead>
+                    <TableHead className="font-medium">Horario</TableHead>
+                    <TableHead className="font-medium w-24">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredEmployees.map(employee => (
-                    <TableRow key={employee.id} className="border-b last:border-0">
-                      <TableCell className="font-medium">{employee.name}</TableCell>
-                      <TableCell>
-                        <Badge variant={employee.type === "empleado" ? "default" : "secondary"} className="text-xs capitalize">
-                          {employee.type}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{departments.find(d => d.value === employee.department)?.label || employee.department}</TableCell>
-                      <TableCell className="text-muted-foreground text-sm">{employee.email}</TableCell>
-                      <TableCell>
-                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-300">
-                          Activo
-                        </span>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {filteredEmployees.map(employee => {
+                    const currentGrade = calculateCurrentGrade(employee)
+                    return (
+                      <TableRow key={employee.id} className="border-b last:border-0">
+                        <TableCell>
+                          <div className="font-medium">{employee.name}</div>
+                          <div className="text-xs text-muted-foreground">{employee.email}</div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={employee.type === "empleado" ? "default" : "secondary"} className="text-xs capitalize">
+                            {employee.type}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{departments.find(d => d.value === employee.department)?.label || employee.department}</TableCell>
+                        <TableCell>
+                          {employee.type === "empleado" ? (
+                            <div className="flex items-center gap-1 text-sm">
+                              <DollarSign className="w-3 h-3" />
+                              <span>S/. {employee.salary?.toLocaleString() || "0"}</span>
+                              <span className="text-xs text-muted-foreground">/mes</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1 text-sm">
+                              <GraduationCap className="w-3 h-3" />
+                              <span className={currentGrade < 10 ? "text-red-600 font-medium" : ""}>
+                                {currentGrade.toFixed(1)}/{employee.maxGrade}
+                              </span>
+                              <span className="text-xs text-muted-foreground">pts</span>
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-xs">
+                            <span className="text-muted-foreground">Entrada:</span> {employee.checkInTime}
+                            <br />
+                            <span className="text-muted-foreground">Salida:</span> {employee.checkOutTime}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1">
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8"
+                              onClick={() => openEditDialog(employee)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                              onClick={() => openDeleteDialog(employee)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
                   {filteredEmployees.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center text-muted-foreground py-12">
+                      <TableCell colSpan={6} className="text-center text-muted-foreground py-12">
                         No se encontraron resultados
                       </TableCell>
                     </TableRow>
@@ -531,9 +786,8 @@ export default function AsistenciaPage() {
         </Tabs>
       </main>
 
-      {/* Dialog agregar empleado */}
       <Dialog open={isAddEmployeeOpen} onOpenChange={setIsAddEmployeeOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-lg font-medium">Nuevo colaborador</DialogTitle>
           </DialogHeader>
@@ -546,7 +800,7 @@ export default function AsistenciaPage() {
                   <FormItem>
                     <FormLabel>Nombre completo</FormLabel>
                     <FormControl>
-                      <Input placeholder="Ej: Juan Pérez" {...field} />
+                      <Input placeholder="Ej: Juan Perez" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -610,6 +864,101 @@ export default function AsistenciaPage() {
                   </FormItem>
                 )}
               />
+              
+              <div className="border-t pt-4">
+                <h4 className="text-sm font-medium mb-3">Configuracion de horario</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="checkInTime"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Hora entrada</FormLabel>
+                        <FormControl>
+                          <Input type="time" {...field} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="checkOutTime"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Hora salida</FormLabel>
+                        <FormControl>
+                          <Input type="time" {...field} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
+
+              {form.watch("type") === "empleado" && (
+                <div className="border-t pt-4">
+                  <h4 className="text-sm font-medium mb-3">Configuracion salarial</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="salary"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Sueldo mensual (S/.)</FormLabel>
+                          <FormControl>
+                            <Input type="number" min="0" step="100" {...field} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="latePenaltyRate"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Descuento por min tarde (S/.)</FormLabel>
+                          <FormControl>
+                            <Input type="number" min="0" step="0.5" {...field} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {form.watch("type") === "practicante" && (
+                <div className="border-t pt-4">
+                  <h4 className="text-sm font-medium mb-3">Configuracion de nota</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="maxGrade"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Nota maxima</FormLabel>
+                          <FormControl>
+                            <Input type="number" min="0" max="20" step="1" {...field} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="gradePenaltyRate"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Puntos por min tarde</FormLabel>
+                          <FormControl>
+                            <Input type="number" min="0" step="0.5" {...field} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+              )}
+
               <div className="flex justify-end gap-3 pt-4">
                 <Button type="button" variant="outline" onClick={() => setIsAddEmployeeOpen(false)}>
                   Cancelar
@@ -620,6 +969,235 @@ export default function AsistenciaPage() {
           </Form>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={isEditEmployeeOpen} onOpenChange={setIsEditEmployeeOpen}>
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-medium">Editar colaborador</DialogTitle>
+          </DialogHeader>
+          <Form {...editForm}>
+            <form onSubmit={editForm.handleSubmit(onEditEmployee)} className="space-y-4 mt-4">
+              <FormField
+                control={editForm.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nombre completo</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Ej: Juan Perez" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={editForm.control}
+                  name="type"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Tipo</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Seleccionar" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="empleado">Empleado</SelectItem>
+                          <SelectItem value="practicante">Practicante</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={editForm.control}
+                  name="department"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Departamento</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Seleccionar" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {departments.map(dept => (
+                            <SelectItem key={dept.value} value={dept.value}>{dept.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <FormField
+                control={editForm.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input type="email" placeholder="nombre@dsg.pe" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <div className="border-t pt-4">
+                <h4 className="text-sm font-medium mb-3">Configuracion de horario</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={editForm.control}
+                    name="checkInTime"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Hora entrada</FormLabel>
+                        <FormControl>
+                          <Input type="time" {...field} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={editForm.control}
+                    name="checkOutTime"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Hora salida</FormLabel>
+                        <FormControl>
+                          <Input type="time" {...field} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4 mt-4">
+                  <FormField
+                    control={editForm.control}
+                    name="breakStartTime"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Inicio receso</FormLabel>
+                        <FormControl>
+                          <Input type="time" {...field} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={editForm.control}
+                    name="breakEndTime"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Fin receso</FormLabel>
+                        <FormControl>
+                          <Input type="time" {...field} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
+
+              {editForm.watch("type") === "empleado" && (
+                <div className="border-t pt-4">
+                  <h4 className="text-sm font-medium mb-3">Configuracion salarial</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={editForm.control}
+                      name="salary"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Sueldo mensual (S/.)</FormLabel>
+                          <FormControl>
+                            <Input type="number" min="0" step="100" {...field} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={editForm.control}
+                      name="latePenaltyRate"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Descuento por min tarde (S/.)</FormLabel>
+                          <FormControl>
+                            <Input type="number" min="0" step="0.5" {...field} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {editForm.watch("type") === "practicante" && (
+                <div className="border-t pt-4">
+                  <h4 className="text-sm font-medium mb-3">Configuracion de nota</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={editForm.control}
+                      name="maxGrade"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Nota maxima</FormLabel>
+                          <FormControl>
+                            <Input type="number" min="0" max="20" step="1" {...field} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={editForm.control}
+                      name="gradePenaltyRate"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Puntos por min tarde</FormLabel>
+                          <FormControl>
+                            <Input type="number" min="0" step="0.5" {...field} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-3 pt-4">
+                <Button type="button" variant="outline" onClick={() => setIsEditEmployeeOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button type="submit">Guardar cambios</Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar colaborador</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta seguro de eliminar a <strong>{deletingEmployee?.name}</strong>? Esta accion no se puede deshacer y eliminara todos sus registros de asistencia.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setIsDeleteDialogOpen(false)}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={onDeleteEmployee} className="bg-red-600 hover:bg-red-700">
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
