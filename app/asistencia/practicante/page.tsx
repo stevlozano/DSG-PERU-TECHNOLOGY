@@ -319,6 +319,14 @@ export default function PracticanteAsistenciaPage() {
                 style={{ width: `${gradePercentage}%` }}
               />
             </div>
+
+            {/* Message about not receiving salary */}
+            <div className={`mt-4 p-3 ${subCardBg} rounded-lg`}>
+              <p className={`text-sm ${mutedText} text-center`}>
+                <GraduationCap className="w-4 h-4 inline mr-1" />
+                No recibe propina por su esfuerzo en sus practicas
+              </p>
+            </div>
             
             {totalPointsLost > 0 && (
               <div className="mt-4 p-3 bg-red-950/30 border border-red-900 rounded-lg flex items-start gap-2">

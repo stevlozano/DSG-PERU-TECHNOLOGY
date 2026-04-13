@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Checkbox } from "@/components/ui/checkbox"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
-import { ArrowLeft, UserPlus, Pencil, Trash2, DollarSign, GraduationCap, Clock, Moon, Sun, Users, Calendar } from "lucide-react"
+import { ArrowLeft, UserPlus, Pencil, Trash2, DollarSign, GraduationCap, Clock, Moon, Sun, Users, Calendar, Save } from "lucide-react"
 
 interface Schedule {
   name: string
@@ -35,9 +35,7 @@ interface Employee {
   breakEndTime: string
   maxGrade: number
   gradePenaltyRate: number
-  // For practicantes - multiple schedules
   availableSchedules?: Schedule[]
-  selectedSchedule?: Schedule
   flexibleSchedule?: boolean
 }
 
@@ -126,7 +124,11 @@ export default function AdminAsistenciaPage() {
     localStorage.setItem("dsg-attendance", JSON.stringify(attendance))
   }, [attendance])
 
+  // Add/Edit employee states
   const [isAddOpen, setIsAddOpen] = useState(false)
+  const [isEditOpen, setIsEditOpen] = useState(false)
+  const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null)
+  
   const [newEmployee, setNewEmployee] = useState<Partial<Employee>>({
     type: "empleado",
     department: "TI",
@@ -139,7 +141,6 @@ export default function AdminAsistenciaPage() {
     maxGrade: 20,
     gradePenaltyRate: 1,
     flexibleSchedule: false,
-    availableSchedules: [defaultSchedules[0]],
   })
   const [selectedSchedules, setSelectedSchedules] = useState<string[]>(["Mañana"])
 
@@ -189,11 +190,41 @@ export default function AdminAsistenciaPage() {
       gradePenaltyRate: newEmployee.gradePenaltyRate || 1,
       flexibleSchedule: newEmployee.flexibleSchedule,
       availableSchedules,
-      selectedSchedule: availableSchedules?.[0],
     }
 
     setEmployees([...employees, employee])
     setIsAddOpen(false)
+    resetForm()
+  }
+
+  const handleEditEmployee = () => {
+    if (!editingEmployee) return
+
+    const availableSchedules = editingEmployee.type === "practicante" 
+      ? selectedSchedules.map(name => defaultSchedules.find(s => s.name === name)!).filter(Boolean)
+      : undefined
+
+    const updatedEmployee: Employee = {
+      ...editingEmployee,
+      availableSchedules,
+    }
+
+    setEmployees(employees.map(emp => emp.id === updatedEmployee.id ? updatedEmployee : emp))
+    setIsEditOpen(false)
+    setEditingEmployee(null)
+  }
+
+  const openEditDialog = (employee: Employee) => {
+    setEditingEmployee(employee)
+    if (employee.type === "practicante" && employee.availableSchedules) {
+      setSelectedSchedules(employee.availableSchedules.map(s => s.name))
+    } else {
+      setSelectedSchedules(["Mañana"])
+    }
+    setIsEditOpen(true)
+  }
+
+  const resetForm = () => {
     setNewEmployee({
       type: "empleado",
       department: "TI",
@@ -206,7 +237,6 @@ export default function AdminAsistenciaPage() {
       maxGrade: 20,
       gradePenaltyRate: 1,
       flexibleSchedule: false,
-      availableSchedules: [defaultSchedules[0]],
     })
     setSelectedSchedules(["Mañana"])
   }
@@ -374,7 +404,12 @@ export default function AdminAsistenciaPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-1">
-                          <Button variant="ghost" size="icon" className={`h-8 w-8 ${mutedText}`}>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className={`h-8 w-8 ${mutedText}`}
+                            onClick={() => openEditDialog(emp)}
+                          >
                             <Pencil className="h-4 w-4" />
                           </Button>
                           <Button 
@@ -456,6 +491,7 @@ export default function AdminAsistenciaPage() {
         </Card>
       </main>
 
+      {/* Add Employee Dialog */}
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
         <DialogContent className={`${isDarkMode ? "bg-[#141414] border-[#2a2a2a] text-white" : "bg-white border-gray-200"} max-w-2xl max-h-[90vh] overflow-y-auto`}>
           <DialogHeader>
@@ -590,11 +626,11 @@ export default function AdminAsistenciaPage() {
                   {defaultSchedules.map((schedule) => (
                     <div key={schedule.name} className="flex items-center space-x-2">
                       <Checkbox 
-                        id={schedule.name}
+                        id={`add-${schedule.name}`}
                         checked={selectedSchedules.includes(schedule.name)}
                         onCheckedChange={() => handleScheduleToggle(schedule.name)}
                       />
-                      <label htmlFor={schedule.name} className="text-sm flex-1">
+                      <label htmlFor={`add-${schedule.name}`} className="text-sm flex-1">
                         <span className="font-medium">{schedule.name}:</span> 
                         <span className={mutedText}> {schedule.checkInTime} - {schedule.checkOutTime}</span>
                       </label>
@@ -604,11 +640,11 @@ export default function AdminAsistenciaPage() {
 
                 <div className="flex items-center space-x-2 pt-2">
                   <Checkbox 
-                    id="flexible"
+                    id="add-flexible"
                     checked={newEmployee.flexibleSchedule}
                     onCheckedChange={(checked) => setNewEmployee({...newEmployee, flexibleSchedule: checked as boolean})}
                   />
-                  <label htmlFor="flexible" className="text-sm">
+                  <label htmlFor="add-flexible" className="text-sm">
                     <span className="font-medium text-green-400">Permitir horario flexible</span>
                     <span className={mutedText}> (puede registrar asistencia en cualquier hora con permiso)</span>
                   </label>
@@ -679,10 +715,11 @@ export default function AdminAsistenciaPage() {
             )}
 
             <div className="flex justify-end gap-3 pt-2">
-              <Button variant="outline" onClick={() => setIsAddOpen(false)}>
+              <Button variant="outline" onClick={() => { setIsAddOpen(false); resetForm(); }}>
                 Cancelar
               </Button>
               <Button onClick={handleAddEmployee} className="bg-blue-600 hover:bg-blue-700">
+                <Save className="w-4 h-4 mr-2" />
                 Guardar Colaborador
               </Button>
             </div>
@@ -690,6 +727,206 @@ export default function AdminAsistenciaPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Edit Employee Dialog */}
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <DialogContent className={`${isDarkMode ? "bg-[#141414] border-[#2a2a2a] text-white" : "bg-white border-gray-200"} max-w-2xl max-h-[90vh] overflow-y-auto`}>
+          <DialogHeader>
+            <DialogTitle className="text-xl flex items-center gap-2">
+              <Pencil className="w-5 h-5" />
+              Editar Colaborador
+            </DialogTitle>
+          </DialogHeader>
+          
+          {editingEmployee && (
+            <div className="space-y-4 py-4">
+              <div className={`p-4 ${subCardBg} rounded-lg space-y-3`}>
+                <h4 className="font-medium text-sm">Informacion Basica</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={`text-xs ${mutedText} mb-1 block`}>DNI</label>
+                    <Input 
+                      value={editingEmployee.dni} 
+                      disabled
+                      className={`${inputBg} opacity-50`}
+                    />
+                  </div>
+                  <div>
+                    <label className={`text-xs ${mutedText} mb-1 block`}>Nombre Completo *</label>
+                    <Input 
+                      value={editingEmployee.name} 
+                      onChange={(e) => setEditingEmployee({...editingEmployee, name: e.target.value})}
+                      className={inputBg}
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={`text-xs ${mutedText} mb-1 block`}>Email *</label>
+                    <Input 
+                      type="email"
+                      value={editingEmployee.email} 
+                      onChange={(e) => setEditingEmployee({...editingEmployee, email: e.target.value})}
+                      className={inputBg}
+                    />
+                  </div>
+                  <div>
+                    <label className={`text-xs ${mutedText} mb-1 block`}>Departamento</label>
+                    <Select 
+                      value={editingEmployee.department} 
+                      onValueChange={(val) => setEditingEmployee({...editingEmployee, department: val})}
+                    >
+                      <SelectTrigger className={inputBg}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className={inputBg}>
+                        {departments.map(d => (
+                          <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+
+              {editingEmployee.type === "empleado" ? (
+                <>
+                  <div className={`p-4 ${subCardBg} rounded-lg space-y-3`}>
+                    <h4 className="font-medium text-sm flex items-center gap-2">
+                      <Clock className="w-4 h-4" />
+                      Horario de Trabajo
+                    </h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className={`text-xs ${mutedText} mb-1 block`}>Hora Entrada</label>
+                        <Input 
+                          type="time"
+                          value={editingEmployee.checkInTime} 
+                          onChange={(e) => setEditingEmployee({...editingEmployee, checkInTime: e.target.value})}
+                          className={inputBg}
+                        />
+                      </div>
+                      <div>
+                        <label className={`text-xs ${mutedText} mb-1 block`}>Hora Salida</label>
+                        <Input 
+                          type="time"
+                          value={editingEmployee.checkOutTime} 
+                          onChange={(e) => setEditingEmployee({...editingEmployee, checkOutTime: e.target.value})}
+                          className={inputBg}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className={`p-4 ${subCardBg} rounded-lg space-y-3`}>
+                    <h4 className="font-medium text-sm flex items-center gap-2">
+                      <DollarSign className="w-4 h-4" />
+                      Configuracion Salarial
+                    </h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className={`text-xs ${mutedText} mb-1 block`}>Sueldo Mensual (S/.)</label>
+                        <Input 
+                          type="number"
+                          value={editingEmployee.salary || ""} 
+                          onChange={(e) => setEditingEmployee({...editingEmployee, salary: Number(e.target.value)})}
+                          className={inputBg}
+                        />
+                      </div>
+                      <div>
+                        <label className={`text-xs ${mutedText} mb-1 block`}>Descuento por min tarde (S/.)</label>
+                        <Input 
+                          type="number"
+                          step="0.5"
+                          value={editingEmployee.latePenaltyRate} 
+                          onChange={(e) => setEditingEmployee({...editingEmployee, latePenaltyRate: Number(e.target.value)})}
+                          className={inputBg}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className={`p-4 ${subCardBg} rounded-lg space-y-3`}>
+                    <h4 className="font-medium text-sm flex items-center gap-2">
+                      <Calendar className="w-4 h-4" />
+                      Horarios Disponibles
+                    </h4>
+                    <p className={`text-xs ${mutedText}`}>Seleccione los horarios disponibles:</p>
+                    
+                    <div className="space-y-2">
+                      {defaultSchedules.map((schedule) => (
+                        <div key={schedule.name} className="flex items-center space-x-2">
+                          <Checkbox 
+                            id={`edit-${schedule.name}`}
+                            checked={selectedSchedules.includes(schedule.name)}
+                            onCheckedChange={() => handleScheduleToggle(schedule.name)}
+                          />
+                          <label htmlFor={`edit-${schedule.name}`} className="text-sm flex-1">
+                            <span className="font-medium">{schedule.name}:</span> 
+                            <span className={mutedText}> {schedule.checkInTime} - {schedule.checkOutTime}</span>
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="flex items-center space-x-2 pt-2">
+                      <Checkbox 
+                        id="edit-flexible"
+                        checked={editingEmployee.flexibleSchedule}
+                        onCheckedChange={(checked) => setEditingEmployee({...editingEmployee, flexibleSchedule: checked as boolean})}
+                      />
+                      <label htmlFor="edit-flexible" className="text-sm">
+                        <span className="font-medium text-green-400">Permitir horario flexible</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className={`p-4 ${subCardBg} rounded-lg space-y-3`}>
+                    <h4 className="font-medium text-sm flex items-center gap-2">
+                      <GraduationCap className="w-4 h-4" />
+                      Configuracion de Nota
+                    </h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className={`text-xs ${mutedText} mb-1 block`}>Nota Maxima</label>
+                        <Input 
+                          type="number"
+                          value={editingEmployee.maxGrade} 
+                          onChange={(e) => setEditingEmployee({...editingEmployee, maxGrade: Number(e.target.value)})}
+                          className={inputBg}
+                        />
+                      </div>
+                      <div>
+                        <label className={`text-xs ${mutedText} mb-1 block`}>Puntos por min tarde</label>
+                        <Input 
+                          type="number"
+                          step="0.5"
+                          value={editingEmployee.gradePenaltyRate} 
+                          onChange={(e) => setEditingEmployee({...editingEmployee, gradePenaltyRate: Number(e.target.value)})}
+                          className={inputBg}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <div className="flex justify-end gap-3 pt-2">
+                <Button variant="outline" onClick={() => { setIsEditOpen(false); setEditingEmployee(null); }}>
+                  Cancelar
+                </Button>
+                <Button onClick={handleEditEmployee} className="bg-blue-600 hover:bg-blue-700">
+                  <Save className="w-4 h-4 mr-2" />
+                  Guardar Cambios
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation */}
       <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
         <DialogContent className={`${isDarkMode ? "bg-[#141414] border-[#2a2a2a] text-white" : "bg-white border-gray-200"}`}>
           <DialogHeader>

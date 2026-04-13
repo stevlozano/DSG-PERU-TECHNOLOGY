@@ -5,7 +5,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { ArrowLeft, Moon, Sun, CheckCircle2, ExternalLink, Clock } from "lucide-react"
+import { ArrowLeft, Moon, Sun, CheckCircle2, ExternalLink, Clock, Lock } from "lucide-react"
 import { format, parse } from "date-fns"
 import { es } from "date-fns/locale"
 
@@ -52,12 +52,23 @@ export default function AsistenciaLandingPage() {
   const [currentTime, setCurrentTime] = useState(format(new Date(), "HH:mm"))
   const [lastRegistration, setLastRegistration] = useState<{name: string, time: string, status: string} | null>(null)
   const [isDarkMode, setIsDarkMode] = useState(true)
+  
+  // Security code state
+  const [securityCode, setSecurityCode] = useState("")
+  const [isAuthorized, setIsAuthorized] = useState(false)
 
   useEffect(() => {
     const saved = localStorage.getItem("asistencia-theme")
     if (saved) {
       setIsDarkMode(saved === "dark")
     }
+    
+    // Check if already authorized
+    const auth = localStorage.getItem("dsg-asistencia-auth")
+    if (auth === "OSTER") {
+      setIsAuthorized(true)
+    }
+    
     const timer = setInterval(() => setCurrentTime(format(new Date(), "HH:mm")), 60000)
     return () => clearInterval(timer)
   }, [])
@@ -68,10 +79,18 @@ export default function AsistenciaLandingPage() {
     localStorage.setItem("asistencia-theme", newMode ? "dark" : "light")
   }
 
+  const handleSecurityCheck = () => {
+    if (securityCode === "OSTER") {
+      setIsAuthorized(true)
+      localStorage.setItem("dsg-asistencia-auth", "OSTER")
+    } else {
+      alert("Codigo de seguridad incorrecto")
+    }
+  }
+
   const handleCheckIn = () => {
     if (dni.length < 8) return
     
-    // Get employees from localStorage
     const savedEmployees = localStorage.getItem("dsg-employees")
     if (!savedEmployees) {
       alert("No hay empleados registrados")
@@ -88,11 +107,9 @@ export default function AsistenciaLandingPage() {
     
     const now = format(new Date(), "HH:mm")
     
-    // Determine check-in time based on employee type
     let scheduledTime = employee.checkInTime
     let scheduleName: string | undefined
     
-    // For practicantes with available schedules, use first available as default
     if (employee.type === "practicante" && employee.availableSchedules && employee.availableSchedules.length > 0) {
       scheduledTime = employee.availableSchedules[0].checkInTime
       scheduleName = employee.availableSchedules[0].name
@@ -123,7 +140,6 @@ export default function AsistenciaLandingPage() {
       scheduleUsed: scheduleName,
     }
     
-    // Save to localStorage
     const savedAttendance = localStorage.getItem("dsg-attendance")
     const allRecords = savedAttendance ? JSON.parse(savedAttendance) : []
     allRecords.push(newRecord)
@@ -146,9 +162,56 @@ export default function AsistenciaLandingPage() {
   const subText = isDarkMode ? "text-gray-500" : "text-gray-500"
   const headerBg = isDarkMode ? "bg-[#141414] border-[#2a2a2a]" : "bg-white border-gray-200"
 
+  // Security gate - show if not authorized
+  if (!isAuthorized) {
+    return (
+      <div className={`min-h-screen ${bgClass} flex items-center justify-center p-4`}>
+        <Card className={`w-full max-w-md ${cardBg}`}>
+          <CardContent className="p-8">
+            <div className="text-center mb-8">
+              <Lock className={`w-12 h-12 ${textColor} mx-auto mb-4`} />
+              <h1 className="text-2xl font-bold mb-2">Acceso Restringido</h1>
+              <p className={textColor}>Ingrese el codigo de seguridad para continuar</p>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className={`text-sm ${textColor} mb-2 block`}>Codigo de Seguridad</label>
+                <Input
+                  type="password"
+                  placeholder="Ingrese codigo..."
+                  value={securityCode}
+                  onChange={(e) => setSecurityCode(e.target.value.toUpperCase())}
+                  className={`${inputBg} text-center text-lg tracking-widest`}
+                  onKeyDown={(e) => e.key === "Enter" && handleSecurityCheck()}
+                />
+                <p className={`text-xs ${subText} mt-2`}>
+                  Pista: Nombre de la cafetera (5 letras, mayusculas)
+                </p>
+              </div>
+              
+              <Button 
+                onClick={handleSecurityCheck}
+                className="w-full bg-blue-600 hover:bg-blue-700"
+              >
+                Verificar Codigo
+              </Button>
+              
+              <Link href="/">
+                <Button variant="ghost" className={`w-full ${textColor}`}>
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Volver al Inicio
+                </Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   return (
     <div className={`min-h-screen ${bgClass} flex flex-col`}>
-      {/* Top Bar with Admin Access */}
       <div className={`${headerBg} border-b px-4 py-3`}>
         <div className="container mx-auto flex items-center justify-between">
           <Link href="/">
@@ -178,7 +241,6 @@ export default function AsistenciaLandingPage() {
 
       <main className="flex-1 flex flex-col items-center justify-center p-4">
         <div className="w-full max-w-md">
-          {/* Welcome Message */}
           <div className="text-center mb-8">
             <h1 className="text-3xl md:text-4xl font-bold mb-2">
               BIENVENIDOS A
@@ -189,7 +251,6 @@ export default function AsistenciaLandingPage() {
             <p className={`${subText} mt-2`}>PERU TECHNOLOGY</p>
           </div>
 
-          {/* Time Display */}
           <div className={`text-center mb-6 p-4 ${cardBg} rounded-lg`}>
             <Clock className={`w-6 h-6 ${textColor} mx-auto mb-2`} />
             <p className="text-4xl font-light">{currentTime}</p>
@@ -198,7 +259,6 @@ export default function AsistenciaLandingPage() {
             </p>
           </div>
 
-          {/* Check-in Form */}
           <Card className={cardBg}>
             <CardContent className="p-6">
               <h3 className="text-lg font-medium text-center mb-4">
@@ -233,7 +293,7 @@ export default function AsistenciaLandingPage() {
               {lastRegistration && (
                 <div className={`mt-4 p-3 ${isDarkMode ? "bg-green-950/30" : "bg-green-50"} border border-green-600/30 rounded-lg`}>
                   <p className="text-green-400 text-sm text-center">
-                    Último registro: <strong>{lastRegistration.name}</strong> a las {lastRegistration.time}
+                    Ultimo registro: <strong>{lastRegistration.name}</strong> a las {lastRegistration.time}
                     <br />
                     <span className={lastRegistration.status === "tarde" ? "text-yellow-400" : "text-green-400"}>
                       Estado: {lastRegistration.status === "tarde" ? "Tarde" : "Presente"}
@@ -244,7 +304,6 @@ export default function AsistenciaLandingPage() {
             </CardContent>
           </Card>
 
-          {/* Info Cards */}
           <div className="grid grid-cols-2 gap-4 mt-6">
             <Link href="/asistencia/empleado">
               <Card className={`${cardBg} hover:border-green-600 transition-all cursor-pointer`}>
