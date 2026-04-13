@@ -7,12 +7,13 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { format, startOfMonth, endOfMonth, isWithinInterval, parse } from "date-fns"
+import { format, parse, isSameDay } from "date-fns"
 import { es } from "date-fns/locale"
-import { ArrowLeft, LogIn, GraduationCap, Clock, CalendarDays, AlertTriangle } from "lucide-react"
+import { ArrowLeft, LogIn, GraduationCap, Clock, CalendarDays, Moon, Sun, AlertTriangle } from "lucide-react"
 
 interface AttendanceRecord {
   id: string
+  employeeId: string
   date: Date
   checkIn?: string
   checkOut?: string
@@ -21,25 +22,50 @@ interface AttendanceRecord {
   pointsDeducted?: number
 }
 
-// Datos de ejemplo - en producción vendrían de una API
-const practicanteData = {
-  id: "2",
-  name: "Maria Garcia",
-  email: "maria@dsg.pe",
-  department: "Marketing",
-  maxGrade: 20,
-  gradePenaltyRate: 1,
-  checkInTime: "09:00",
-  checkOutTime: "13:00",
+interface Employee {
+  id: string
+  name: string
+  email: string
+  department: string
+  maxGrade: number
+  gradePenaltyRate: number
+  checkInTime: string
+  checkOutTime: string
+  dni?: string
+  type: string
 }
 
 export default function PracticanteAsistenciaPage() {
   const [dni, setDni] = useState("")
   const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [currentPracticante, setCurrentPracticante] = useState<Employee | null>(null)
   const [currentTime, setCurrentTime] = useState<string>(format(new Date(), "HH:mm"))
   const [todayRecord, setTodayRecord] = useState<AttendanceRecord | null>(null)
-  const [monthlyRecords, setMonthlyRecords] = useState<AttendanceRecord[]>([])
+  const [myRecords, setMyRecords] = useState<AttendanceRecord[]>([])
   const [totalPointsLost, setTotalPointsLost] = useState(0)
+  const [isDarkMode, setIsDarkMode] = useState(true)
+
+  // Load theme preference
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("asistencia-theme")
+    if (savedTheme) {
+      setIsDarkMode(savedTheme === "dark")
+    }
+  }, [])
+
+  const toggleTheme = () => {
+    const newMode = !isDarkMode
+    setIsDarkMode(newMode)
+    localStorage.setItem("asistencia-theme", newMode ? "dark" : "light")
+  }
+
+  // Theme classes
+  const bgClass = isDarkMode ? "bg-[#0a0a0a] text-white" : "bg-gray-50 text-gray-900"
+  const cardBg = isDarkMode ? "bg-[#141414] border-[#2a2a2a]" : "bg-white border-gray-200"
+  const inputBg = isDarkMode ? "bg-[#1a1a1a] border-[#2a2a2a]" : "bg-white border-gray-300"
+  const headerBorder = isDarkMode ? "border-[#2a2a2a]" : "border-gray-200"
+  const mutedText = isDarkMode ? "text-gray-400" : "text-gray-600"
+  const tableBorder = isDarkMode ? "border-[#2a2a2a]" : "border-gray-200"
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -48,34 +74,58 @@ export default function PracticanteAsistenciaPage() {
     return () => clearInterval(timer)
   }, [])
 
-  // Simular login con DNI
+  // Load practicante data from localStorage based on DNI
   const handleLogin = () => {
     if (dni.length >= 8) {
-      setIsAuthenticated(true)
-      // Cargar datos de ejemplo
-      const mockToday: AttendanceRecord = {
-        id: "1",
-        date: new Date(),
-        checkIn: "09:10",
-        checkOut: undefined,
-        status: "tarde",
-        lateMinutes: 10,
-        pointsDeducted: 10,
-      }
-      setTodayRecord(mockToday)
+      // Get employees from localStorage
+      const savedEmployees = localStorage.getItem("dsg-employees")
+      const savedAttendance = localStorage.getItem("dsg-attendance")
       
-      const mockMonth: AttendanceRecord[] = [
-        { id: "2", date: new Date(Date.now() - 86400000), checkIn: "09:00", checkOut: "13:00", status: "presente" },
-        { id: "3", date: new Date(Date.now() - 172800000), checkIn: "09:25", checkOut: "13:00", status: "tarde", lateMinutes: 25, pointsDeducted: 25 },
-      ]
-      setMonthlyRecords(mockMonth)
-      setTotalPointsLost(35)
+      if (savedEmployees) {
+        const employees: Employee[] = JSON.parse(savedEmployees)
+        // Find practicante by DNI
+        const found = employees.find(emp => (emp.id === dni || emp.dni === dni) && emp.type === "practicante")
+        
+        if (found) {
+          setCurrentPracticante(found)
+          setIsAuthenticated(true)
+          
+          // Load attendance records for this practicante only
+          if (savedAttendance) {
+            const allRecords: AttendanceRecord[] = JSON.parse(savedAttendance).map((r: any) => ({
+              ...r,
+              date: new Date(r.date)
+            }))
+            
+            // Filter only this practicante's records
+            const myRecordsFiltered = allRecords.filter(r => r.employeeId === found.id)
+            setMyRecords(myRecordsFiltered)
+            
+            // Calculate total points lost
+            const total = myRecordsFiltered.reduce((sum, r) => sum + (r.pointsDeducted || 0), 0)
+            setTotalPointsLost(total)
+            
+            // Check if already checked in today
+            const today = new Date()
+            const todayRec = myRecordsFiltered.find(r => isSameDay(new Date(r.date), today))
+            if (todayRec) {
+              setTodayRecord(todayRec)
+            }
+          }
+        } else {
+          alert("DNI no encontrado o no es un practicante")
+        }
+      } else {
+        alert("No hay practicantes registrados. Contacte al administrador.")
+      }
     }
   }
 
   const handleCheckIn = () => {
+    if (!currentPracticante) return
+    
     const now = format(new Date(), "HH:mm")
-    const scheduled = parse(practicanteData.checkInTime, "HH:mm", new Date())
+    const scheduled = parse(currentPracticante.checkInTime, "HH:mm", new Date())
     const actual = parse(now, "HH:mm", new Date())
     const isLate = actual > scheduled
     
@@ -83,10 +133,11 @@ export default function PracticanteAsistenciaPage() {
       ? Math.ceil((actual.getTime() - scheduled.getTime()) / (1000 * 60))
       : 0
     
-    const pointsDeducted = lateMinutes * practicanteData.gradePenaltyRate
+    const pointsDeducted = lateMinutes * currentPracticante.gradePenaltyRate
 
     const newRecord: AttendanceRecord = {
       id: Date.now().toString(),
+      employeeId: currentPracticante.id,
       date: new Date(),
       checkIn: now,
       status: isLate ? "tarde" : "presente",
@@ -94,44 +145,63 @@ export default function PracticanteAsistenciaPage() {
       pointsDeducted: isLate ? pointsDeducted : undefined,
     }
     
+    // Save to localStorage
+    const savedAttendance = localStorage.getItem("dsg-attendance")
+    const allRecords = savedAttendance ? JSON.parse(savedAttendance) : []
+    allRecords.push(newRecord)
+    localStorage.setItem("dsg-attendance", JSON.stringify(allRecords))
+    
     setTodayRecord(newRecord)
+    setMyRecords([...myRecords, newRecord])
     if (isLate) {
       setTotalPointsLost(prev => prev + pointsDeducted)
     }
   }
 
   const handleCheckOut = () => {
-    if (todayRecord) {
-      setTodayRecord({
-        ...todayRecord,
-        checkOut: format(new Date(), "HH:mm"),
-      })
+    if (!currentPracticante || !todayRecord) return
+    
+    const now = format(new Date(), "HH:mm")
+    
+    // Update in localStorage
+    const savedAttendance = localStorage.getItem("dsg-attendance")
+    if (savedAttendance) {
+      const allRecords: AttendanceRecord[] = JSON.parse(savedAttendance)
+      const updated = allRecords.map(r => 
+        r.id === todayRecord.id ? { ...r, checkOut: now } : r
+      )
+      localStorage.setItem("dsg-attendance", JSON.stringify(updated))
     }
+    
+    setTodayRecord({
+      ...todayRecord,
+      checkOut: now,
+    })
   }
 
-  const currentGrade = Math.max(0, practicanteData.maxGrade - totalPointsLost)
-  const gradePercentage = (currentGrade / practicanteData.maxGrade) * 100
+  const currentGrade = currentPracticante ? Math.max(0, currentPracticante.maxGrade - totalPointsLost) : 0
+  const gradePercentage = currentPracticante ? (currentGrade / currentPracticante.maxGrade) * 100 : 0
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-[#0a0a0a] text-white flex items-center justify-center p-4">
-        <Card className="w-full max-w-md bg-[#141414] border-[#2a2a2a]">
+      <div className={`min-h-screen ${bgClass} flex items-center justify-center p-4`}>
+        <Card className={`w-full max-w-md ${cardBg}`}>
           <CardContent className="p-8">
             <div className="text-center mb-8">
               <h1 className="text-2xl font-bold mb-2">Portal Practicante</h1>
-              <p className="text-gray-400">DSG Peru Technology</p>
+              <p className={mutedText}>DSG Peru Technology</p>
             </div>
             
             <div className="space-y-4">
               <div>
-                <label className="text-sm text-gray-400 mb-2 block">Ingrese su DNI</label>
+                <label className={`text-sm ${mutedText} mb-2 block`}>Ingrese su DNI</label>
                 <Input
                   type="text"
                   placeholder="12345678"
                   value={dni}
                   onChange={(e) => setDni(e.target.value)}
                   maxLength={8}
-                  className="bg-[#1a1a1a] border-[#2a2a2a] text-white text-center text-lg tracking-widest"
+                  className={`${inputBg} text-center text-lg tracking-widest`}
                 />
               </div>
               
@@ -144,7 +214,7 @@ export default function PracticanteAsistenciaPage() {
               </Button>
               
               <Link href="/asistencia">
-                <Button variant="ghost" className="w-full text-gray-400">
+                <Button variant="ghost" className={`w-full ${mutedText}`}>
                   <ArrowLeft className="w-4 h-4 mr-2" />
                   Volver
                 </Button>
@@ -157,19 +227,29 @@ export default function PracticanteAsistenciaPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white">
-      <header className="border-b border-[#2a2a2a]">
+    <div className={`min-h-screen ${bgClass}`}>
+      <header className={`border-b ${headerBorder}`}>
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-xl font-bold">Hola, {practicanteData.name}</h1>
-              <p className="text-sm text-gray-400">Practicante - {practicanteData.department}</p>
+              <h1 className="text-xl font-bold">Hola, {currentPracticante?.name}</h1>
+              <p className={`text-sm ${mutedText}`}>Practicante - {currentPracticante?.department}</p>
             </div>
-            <div className="text-right">
-              <p className="text-3xl font-light">{currentTime}</p>
-              <p className="text-xs text-gray-400">
-                {format(new Date(), "EEEE, d MMMM", { locale: es })}
-              </p>
+            <div className="flex items-center gap-4">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={toggleTheme}
+                className={mutedText}
+              >
+                {isDarkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+              </Button>
+              <div className="text-right">
+                <p className="text-3xl font-light">{currentTime}</p>
+                <p className={`text-xs ${mutedText}`}>
+                  {format(new Date(), "EEEE, d MMMM", { locale: es })}
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -177,7 +257,7 @@ export default function PracticanteAsistenciaPage() {
 
       <main className="container mx-auto px-4 py-8 space-y-6">
         {/* Nota Actual */}
-        <Card className="bg-[#141414] border-[#2a2a2a]">
+        <Card className={cardBg}>
           <CardContent className="p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-medium flex items-center gap-2">
@@ -195,11 +275,11 @@ export default function PracticanteAsistenciaPage() {
               <span className={`text-5xl font-bold ${currentGrade < 10 ? 'text-red-400' : 'text-purple-400'}`}>
                 {currentGrade.toFixed(1)}
               </span>
-              <span className="text-2xl text-gray-400">/ {practicanteData.maxGrade}</span>
+              <span className="text-2xl text-gray-400">/ {currentPracticante?.maxGrade}</span>
             </div>
             
             {/* Barra de progreso */}
-            <div className="w-full h-4 bg-[#1a1a1a] rounded-full overflow-hidden">
+            <div className="w-full h-4 bg-gray-700 rounded-full overflow-hidden">
               <div 
                 className={`h-full transition-all ${gradePercentage >= 70 ? 'bg-green-500' : gradePercentage >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}
                 style={{ width: `${gradePercentage}%` }}
@@ -213,8 +293,8 @@ export default function PracticanteAsistenciaPage() {
                   <p className="text-sm text-red-400">
                     Has perdido {totalPointsLost} puntos por tardanzas
                   </p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Cada minuto de retraso resta {practicanteData.gradePenaltyRate} punto
+                  <p className={`text-xs ${mutedText} mt-1`}>
+                    Cada minuto de retraso resta {currentPracticante?.gradePenaltyRate} punto
                   </p>
                 </div>
               </div>
@@ -223,25 +303,24 @@ export default function PracticanteAsistenciaPage() {
         </Card>
 
         {/* Registro de Hoy */}
-        <Card className="bg-[#141414] border-[#2a2a2a]">
+        <Card className={cardBg}>
           <CardContent className="p-6">
             <h2 className="text-lg font-medium mb-4">Registro de Hoy</h2>
             
             {todayRecord ? (
               <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 bg-[#1a1a1a] rounded-lg">
+                <div className={`flex items-center justify-between p-4 ${isDarkMode ? "bg-[#1a1a1a]" : "bg-gray-100"} rounded-lg`}>
                   <div className="flex items-center gap-3">
-                    <Clock className="w-5 h-5 text-gray-400" />
+                    <Clock className={`w-5 h-5 ${mutedText}`} />
                     <div>
                       <p className="font-medium">Entrada: {todayRecord.checkIn}</p>
                       {todayRecord.checkOut && (
-                        <p className="text-sm text-gray-400">Salida: {todayRecord.checkOut}</p>
+                        <p className={`text-sm ${mutedText}`}>Salida: {todayRecord.checkOut}</p>
                       )}
                     </div>
                   </div>
                   <Badge 
-                    variant={todayRecord.status === "presente" ? "default" : "secondary"}
-                    className={todayRecord.status === "tarde" ? "bg-yellow-600" : "bg-green-600"}
+                    className={todayRecord.status === "presente" ? "bg-green-600" : "bg-yellow-600"}
                   >
                     {todayRecord.status}
                   </Badge>
@@ -253,7 +332,7 @@ export default function PracticanteAsistenciaPage() {
                       <GraduationCap className="w-4 h-4 inline mr-1" />
                       Puntos perdidos: {todayRecord.pointsDeducted}
                     </p>
-                    <p className="text-sm text-gray-400 mt-1">
+                    <p className={`text-sm ${mutedText} mt-1`}>
                       {todayRecord.lateMinutes} minutos de retraso
                     </p>
                   </div>
@@ -274,35 +353,34 @@ export default function PracticanteAsistenciaPage() {
           </CardContent>
         </Card>
 
-        {/* Historial del Mes */}
-        <Card className="bg-[#141414] border-[#2a2a2a]">
+        {/* Mi Historial */}
+        <Card className={cardBg}>
           <CardContent className="p-6">
             <h2 className="text-lg font-medium mb-4 flex items-center gap-2">
               <CalendarDays className="w-5 h-5" />
-              Historial del Mes
+              Mi Historial
             </h2>
             
-            <div className="border border-[#2a2a2a] rounded-lg overflow-hidden">
+            <div className={`border ${tableBorder} rounded-lg overflow-hidden`}>
               <Table>
                 <TableHeader>
-                  <TableRow className="border-[#2a2a2a] hover:bg-transparent">
-                    <TableHead className="text-gray-400">Fecha</TableHead>
-                    <TableHead className="text-gray-400">Entrada</TableHead>
-                    <TableHead className="text-gray-400">Salida</TableHead>
-                    <TableHead className="text-gray-400">Estado</TableHead>
-                    <TableHead className="text-gray-400">Puntos</TableHead>
+                  <TableRow className={`${tableBorder} hover:bg-transparent`}>
+                    <TableHead className={mutedText}>Fecha</TableHead>
+                    <TableHead className={mutedText}>Entrada</TableHead>
+                    <TableHead className={mutedText}>Salida</TableHead>
+                    <TableHead className={mutedText}>Estado</TableHead>
+                    <TableHead className={mutedText}>Puntos</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {monthlyRecords.map((record) => (
-                    <TableRow key={record.id} className="border-[#2a2a2a]">
+                  {myRecords.map((record) => (
+                    <TableRow key={record.id} className={tableBorder}>
                       <TableCell>{format(record.date, "dd/MM/yyyy")}</TableCell>
                       <TableCell>{record.checkIn || "—"}</TableCell>
                       <TableCell>{record.checkOut || "—"}</TableCell>
                       <TableCell>
                         <Badge 
-                          variant={record.status === "presente" ? "default" : "secondary"}
-                          className={record.status === "tarde" ? "bg-yellow-600" : record.status === "ausente" ? "bg-red-600" : "bg-green-600"}
+                          className={record.status === "presente" ? "bg-green-600" : "bg-yellow-600"}
                         >
                           {record.status}
                         </Badge>
@@ -312,10 +390,10 @@ export default function PracticanteAsistenciaPage() {
                       </TableCell>
                     </TableRow>
                   ))}
-                  {monthlyRecords.length === 0 && (
+                  {myRecords.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center text-gray-500 py-8">
-                        No hay registros este mes
+                      <TableCell colSpan={5} className={`text-center ${mutedText} py-8`}>
+                        No hay registros
                       </TableCell>
                     </TableRow>
                   )}
@@ -326,7 +404,7 @@ export default function PracticanteAsistenciaPage() {
         </Card>
 
         <Link href="/asistencia">
-          <Button variant="ghost" className="w-full text-gray-400">
+          <Button variant="ghost" className={`w-full ${mutedText}`}>
             <ArrowLeft className="w-4 h-4 mr-2" />
             Cerrar Sesion
           </Button>
