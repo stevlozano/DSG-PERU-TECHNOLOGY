@@ -72,7 +72,7 @@ export default function PracticanteAsistenciaPage() {
   }
 
   const handleLogout = () => {
-    localStorage.removeItem("dsg-asistencia-auth")
+    sessionStorage.removeItem("dsg-asistencia-auth")
     setIsAuthenticated(false)
     setCurrentPracticante(null)
     setDni("")

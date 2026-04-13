@@ -59,7 +59,7 @@ export default function EmpleadoAsistenciaPage() {
   }
 
   const handleLogout = () => {
-    localStorage.removeItem("dsg-asistencia-auth")
+    sessionStorage.removeItem("dsg-asistencia-auth")
     setIsAuthenticated(false)
     setCurrentEmployee(null)
     setDni("")

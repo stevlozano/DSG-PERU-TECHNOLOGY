@@ -63,8 +63,8 @@ export default function AsistenciaLandingPage() {
       setIsDarkMode(saved === "dark")
     }
     
-    // Check if already authorized
-    const auth = localStorage.getItem("dsg-asistencia-auth")
+    // Check if already authorized (using sessionStorage for per-tab auth)
+    const auth = sessionStorage.getItem("dsg-asistencia-auth")
     if (auth === "OSTER") {
       setIsAuthorized(true)
     }
@@ -82,10 +82,16 @@ export default function AsistenciaLandingPage() {
   const handleSecurityCheck = () => {
     if (securityCode === "OSTER") {
       setIsAuthorized(true)
-      localStorage.setItem("dsg-asistencia-auth", "OSTER")
+      sessionStorage.setItem("dsg-asistencia-auth", "OSTER")
     } else {
       alert("Codigo de seguridad incorrecto")
     }
+  }
+
+  const handleLogout = () => {
+    sessionStorage.removeItem("dsg-asistencia-auth")
+    setIsAuthorized(false)
+    setSecurityCode("")
   }
 
   const handleCheckIn = () => {
@@ -214,12 +220,10 @@ export default function AsistenciaLandingPage() {
     <div className={`min-h-screen ${bgClass} flex flex-col`}>
       <div className={`${headerBg} border-b px-4 py-3`}>
         <div className="container mx-auto flex items-center justify-between">
-          <Link href="/">
-            <Button variant="ghost" size="sm" className={textColor}>
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Volver a Inicio
-            </Button>
-          </Link>
+          <Button variant="ghost" size="sm" className={textColor} onClick={handleLogout}>
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Salir / Cerrar Asistencia
+          </Button>
           <div className="flex items-center gap-3">
             <Button
               variant="ghost"

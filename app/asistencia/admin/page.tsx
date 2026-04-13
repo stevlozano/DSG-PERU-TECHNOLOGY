@@ -87,7 +87,7 @@ export default function AdminAsistenciaPage() {
   }
 
   const handleLogout = () => {
-    localStorage.removeItem("dsg-asistencia-auth")
+    sessionStorage.removeItem("dsg-asistencia-auth")
     window.location.href = "/asistencia"
   }
 
