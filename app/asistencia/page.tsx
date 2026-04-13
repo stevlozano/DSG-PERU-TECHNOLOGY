@@ -9,6 +9,12 @@ import { ArrowLeft, Moon, Sun, CheckCircle2, ExternalLink, Clock } from "lucide-
 import { format, parse } from "date-fns"
 import { es } from "date-fns/locale"
 
+interface Schedule {
+  name: string
+  checkInTime: string
+  checkOutTime: string
+}
+
 interface Employee {
   id: string
   name: string
@@ -22,6 +28,8 @@ interface Employee {
   checkOutTime: string
   maxGrade: number
   gradePenaltyRate: number
+  availableSchedules?: Schedule[]
+  flexibleSchedule?: boolean
 }
 
 interface AttendanceRecord {
@@ -36,6 +44,7 @@ interface AttendanceRecord {
   lateMinutes?: number
   penaltyAmount?: number
   pointsDeducted?: number
+  scheduleUsed?: string
 }
 
 export default function AsistenciaLandingPage() {
@@ -78,7 +87,18 @@ export default function AsistenciaLandingPage() {
     }
     
     const now = format(new Date(), "HH:mm")
-    const scheduled = parse(employee.checkInTime, "HH:mm", new Date())
+    
+    // Determine check-in time based on employee type
+    let scheduledTime = employee.checkInTime
+    let scheduleName: string | undefined
+    
+    // For practicantes with available schedules, use first available as default
+    if (employee.type === "practicante" && employee.availableSchedules && employee.availableSchedules.length > 0) {
+      scheduledTime = employee.availableSchedules[0].checkInTime
+      scheduleName = employee.availableSchedules[0].name
+    }
+    
+    const scheduled = parse(scheduledTime, "HH:mm", new Date())
     const actual = parse(now, "HH:mm", new Date())
     const isLate = actual > scheduled
     
@@ -100,6 +120,7 @@ export default function AsistenciaLandingPage() {
       lateMinutes: isLate ? lateMinutes : undefined,
       penaltyAmount: penaltyAmount || undefined,
       pointsDeducted: pointsDeducted || undefined,
+      scheduleUsed: scheduleName,
     }
     
     // Save to localStorage
