@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
+// AlertDialog component not available - using custom implementation with Dialog
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
@@ -1180,24 +1180,29 @@ export default function AsistenciaPage() {
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Eliminar colaborador</AlertDialogTitle>
-            <AlertDialogDescription>
-              Esta seguro de eliminar a <strong>{deletingEmployee?.name}</strong>? Esta accion no se puede deshacer y eliminara todos sus registros de asistencia.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setIsDeleteDialogOpen(false)}>
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-medium text-red-600">Eliminar colaborador</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-muted-foreground">
+              Esta seguro de eliminar a <strong className="text-foreground">{deletingEmployee?.name}</strong>?
+            </p>
+            <p className="text-sm text-muted-foreground mt-2">
+              Esta accion no se puede deshacer y eliminara todos sus registros de asistencia.
+            </p>
+          </div>
+          <div className="flex justify-end gap-3">
+            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
               Cancelar
-            </AlertDialogCancel>
-            <AlertDialogAction onClick={onDeleteEmployee} className="bg-red-600 hover:bg-red-700">
+            </Button>
+            <Button onClick={onDeleteEmployee} variant="destructive">
               Eliminar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
