@@ -303,10 +303,10 @@ export default function AdminAsistenciaPage() {
                 variant="ghost" 
                 size="sm" 
                 onClick={handleLogout} 
-                className={`${mutedText} gap-2 hidden sm:flex`}
+                className={`${mutedText} gap-2`}
               >
                 <LogOut className="h-4 w-4" />
-                Salir
+                <span className="hidden sm:inline">Salir</span>
               </Button>
               <div className="text-right hidden md:block">
                 <p className="text-2xl font-light">{currentTime}</p>
