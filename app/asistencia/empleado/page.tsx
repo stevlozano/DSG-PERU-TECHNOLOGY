@@ -259,12 +259,6 @@ export default function EmpleadoAsistenciaPage() {
                 <LogOut className="h-4 w-4" />
                 <span className="hidden sm:inline">Salir</span>
               </Button>
-              <div className="text-right">
-                <p className="text-3xl font-light">{currentTime}</p>
-                <p className={`text-xs ${mutedText}`}>
-                  {format(new Date(), "EEEE, d MMMM", { locale: es })}
-                </p>
-              </div>
             </div>
           </div>
         </div>
