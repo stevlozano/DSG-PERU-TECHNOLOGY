@@ -1121,7 +1121,7 @@ export default function AdminAsistenciaPage() {
             <DialogTitle className="text-red-400">Eliminar Colaborador</DialogTitle>
           </DialogHeader>
           <p className={`${mutedText} py-4`}>
-            Esta seguro de eliminar a <strong className={isDarkMode ? "text-white" : "text-gray-900"}>{deletingEmployee?.name}</strong> (DNI: {deletingEmployee?.dni})?
+            Esta seguro de eliminar a <strong className={isDarkMode ? "text-gray-100" : "text-gray-900"}>{deletingEmployee?.name}</strong> (DNI: {deletingEmployee?.dni})?
             <br />
             <span className="text-sm">Esta accion eliminara tambien todos sus registros de asistencia.</span>
           </p>
