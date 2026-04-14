@@ -91,12 +91,12 @@ export default function AdminAsistenciaPage() {
     window.location.href = "/asistencia"
   }
 
-  const bgClass = isDarkMode ? "bg-[#0a0a0a] text-white" : "bg-gray-50 text-gray-900"
-  const cardBg = isDarkMode ? "bg-[#141414] border-[#2a2a2a]" : "bg-white border-gray-200"
-  const inputBg = isDarkMode ? "bg-[#1a1a1a] border-[#2a2a2a]" : "bg-white border-gray-300"
-  const headerBorder = isDarkMode ? "border-[#2a2a2a]" : "border-gray-200"
+  const bgClass = isDarkMode ? "bg-[#0a0a0a] text-gray-100" : "bg-gray-50 text-gray-900"
+  const cardBg = isDarkMode ? "bg-[#141414] border-[#333333]" : "bg-white border-gray-200"
+  const inputBg = isDarkMode ? "bg-[#1a1a1a] border-[#404040] text-gray-100" : "bg-white border-gray-300"
+  const headerBorder = isDarkMode ? "border-[#333333]" : "border-gray-200"
   const mutedText = isDarkMode ? "text-gray-400" : "text-gray-600"
-  const tableBorder = isDarkMode ? "border-[#2a2a2a]" : "border-gray-200"
+  const tableBorder = isDarkMode ? "border-[#333333]" : "border-gray-200"
   const subCardBg = isDarkMode ? "bg-[#1a1a1a]" : "bg-gray-100"
 
   const [employees, setEmployees] = useState<Employee[]>([])
