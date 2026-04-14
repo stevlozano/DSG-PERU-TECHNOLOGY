@@ -222,7 +222,7 @@ export default function AsistenciaLandingPage() {
         <div className="container mx-auto flex items-center justify-between">
           <Button variant="ghost" size="sm" className={textColor} onClick={handleLogout}>
             <ArrowLeft className="w-4 h-4 mr-2" />
-            Salir / Cerrar Asistencia
+            Salir
           </Button>
           <div className="flex items-center gap-3">
             <Button
