@@ -681,7 +681,7 @@ export default function AdminAsistenciaPage() {
 
       {/* Add/Edit/Delete Dialogs remain the same but with responsive adjustments */}
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-        <DialogContent className={`${isDarkMode ? "bg-[#141414] border-[#2a2a2a] text-white" : "bg-white border-gray-200"} max-w-2xl max-h-[90vh] w-[95vw] sm:w-auto p-0`}>
+        <DialogContent className={`${isDarkMode ? "bg-[#141414] border-[#333333] text-gray-100" : "bg-white border-gray-200"} max-w-2xl max-h-[90vh] w-[95vw] sm:w-auto p-0`}>
           <DialogHeader className="p-6 pb-0">
             <DialogTitle className="text-lg md:text-xl">Registrar Nuevo Colaborador</DialogTitle>
           </DialogHeader>
@@ -917,7 +917,7 @@ export default function AdminAsistenciaPage() {
 
       {/* Edit Dialog */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent className={`${isDarkMode ? "bg-[#141414] border-[#2a2a2a] text-white" : "bg-white border-gray-200"} max-w-2xl max-h-[90vh] w-[95vw] sm:w-auto p-0`}>
+        <DialogContent className={`${isDarkMode ? "bg-[#141414] border-[#333333] text-gray-100" : "bg-white border-gray-200"} max-w-2xl max-h-[90vh] w-[95vw] sm:w-auto p-0`}>
           <DialogHeader className="p-6 pb-0">
             <DialogTitle className="text-lg md:text-xl flex items-center gap-2">
               <Pencil className="w-5 h-5" />
@@ -1116,7 +1116,7 @@ export default function AdminAsistenciaPage() {
 
       {/* Delete Confirmation */}
       <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
-        <DialogContent className={`${isDarkMode ? "bg-[#141414] border-[#2a2a2a] text-white" : "bg-white border-gray-200"} w-[95vw] sm:w-auto max-w-md`}>
+        <DialogContent className={`${isDarkMode ? "bg-[#141414] border-[#333333] text-gray-100" : "bg-white border-gray-200"} w-[95vw] sm:w-auto max-w-md`}>
           <DialogHeader>
             <DialogTitle className="text-red-400">Eliminar Colaborador</DialogTitle>
           </DialogHeader>
