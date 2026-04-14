@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Checkbox } from "@/components/ui/checkbox"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
-import { ArrowLeft, UserPlus, Pencil, Trash2, DollarSign, GraduationCap, Clock, Moon, Sun, Users, Calendar, Save, LogOut } from "lucide-react"
+import { ArrowLeft, UserPlus, Pencil, Trash2, DollarSign, GraduationCap, Clock, Moon, Sun, Users, Calendar, Save, LogOut, ChevronLeft, ChevronRight } from "lucide-react"
 
 interface Schedule {
   name: string
@@ -154,6 +154,11 @@ export default function AdminAsistenciaPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [currentTime, setCurrentTime] = useState(format(new Date(), "HH:mm"))
 
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1)
+  const [attendancePage, setAttendancePage] = useState(1)
+  const itemsPerPage = 5
+
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(format(new Date(), "HH:mm")), 60000)
     return () => clearInterval(timer)
@@ -264,25 +269,33 @@ export default function AdminAsistenciaPage() {
     emp.dni.includes(searchTerm)
   )
 
+  // Pagination for employees
+  const totalPages = Math.ceil(filteredEmployees.length / itemsPerPage)
+  const paginatedEmployees = filteredEmployees.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+
   const todayRecords = attendance.filter(r => format(r.date, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd"))
+
+  // Pagination for attendance
+  const totalAttendancePages = Math.ceil(attendance.length / itemsPerPage)
+  const paginatedAttendance = attendance.slice().reverse().slice((attendancePage - 1) * itemsPerPage, attendancePage * itemsPerPage)
 
   return (
     <div className={`min-h-screen ${bgClass}`}>
       <header className={`border-b ${headerBorder}`}>
-        <div className="container mx-auto px-6 py-4">
+        <div className="container mx-auto px-4 md:px-6 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 md:gap-4">
               <Link href="/asistencia">
                 <Button variant="ghost" size="icon" className={`h-8 w-8 ${mutedText}`}>
                   <ArrowLeft className="h-4 w-4" />
                 </Button>
               </Link>
               <div>
-                <h1 className="text-xl font-bold">Panel Administrador</h1>
-                <p className={`text-xs ${mutedText}`}>Gestion de Personal y Asistencia</p>
+                <h1 className="text-lg md:text-xl font-bold">Panel Administrador</h1>
+                <p className={`text-xs ${mutedText} hidden sm:block`}>Gestion de Personal y Asistencia</p>
               </div>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 md:gap-4">
               <Button variant="ghost" size="icon" onClick={toggleTheme} className={mutedText}>
                 {isDarkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
               </Button>
@@ -290,12 +303,12 @@ export default function AdminAsistenciaPage() {
                 variant="ghost" 
                 size="sm" 
                 onClick={handleLogout} 
-                className={`${mutedText} gap-2`}
+                className={`${mutedText} gap-2 hidden sm:flex`}
               >
                 <LogOut className="h-4 w-4" />
-                <span className="hidden sm:inline">Salir</span>
+                Salir
               </Button>
-              <div className="text-right">
+              <div className="text-right hidden md:block">
                 <p className="text-2xl font-light">{currentTime}</p>
               </div>
             </div>
@@ -303,63 +316,125 @@ export default function AdminAsistenciaPage() {
         </div>
       </header>
 
-      <main className="container mx-auto px-6 py-8">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <main className="container mx-auto px-4 md:px-6 py-6 md:py-8 space-y-6">
+        {/* Stats Cards - Responsive Grid */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
           <Card className={`border ${cardBg}`}>
-            <CardContent className="p-4">
+            <CardContent className="p-3 md:p-4">
               <p className={`text-xs ${mutedText} uppercase mb-1`}>Total Personal</p>
-              <p className="text-2xl font-light flex items-center gap-2">
-                <Users className="w-5 h-5" />
+              <p className="text-xl md:text-2xl font-light flex items-center gap-2">
+                <Users className="w-4 h-4 md:w-5 md:h-5" />
                 {employees.length}
               </p>
             </CardContent>
           </Card>
           <Card className={`border ${cardBg}`}>
-            <CardContent className="p-4">
+            <CardContent className="p-3 md:p-4">
               <p className={`text-xs ${mutedText} uppercase mb-1`}>Empleados</p>
-              <p className="text-2xl font-light text-blue-400">
+              <p className="text-xl md:text-2xl font-light text-blue-400">
                 {employees.filter(e => e.type === "empleado").length}
               </p>
             </CardContent>
           </Card>
           <Card className={`border ${cardBg}`}>
-            <CardContent className="p-4">
+            <CardContent className="p-3 md:p-4">
               <p className={`text-xs ${mutedText} uppercase mb-1`}>Practicantes</p>
-              <p className="text-2xl font-light text-purple-400">
+              <p className="text-xl md:text-2xl font-light text-purple-400">
                 {employees.filter(e => e.type === "practicante").length}
               </p>
             </CardContent>
           </Card>
           <Card className={`border ${cardBg}`}>
-            <CardContent className="p-4">
+            <CardContent className="p-3 md:p-4">
               <p className={`text-xs ${mutedText} uppercase mb-1`}>Registros Hoy</p>
-              <p className="text-2xl font-light text-green-400">{todayRecords.length}</p>
+              <p className="text-xl md:text-2xl font-light text-green-400">{todayRecords.length}</p>
             </CardContent>
           </Card>
         </div>
 
+        {/* Employees Section */}
         <Card className={`border ${cardBg}`}>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-medium flex items-center gap-2">
+          <CardContent className="p-4 md:p-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+              <h2 className="text-base md:text-lg font-medium flex items-center gap-2">
                 <Users className="w-5 h-5" />
                 Personal Registrado
               </h2>
-              <div className="flex gap-3">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <Input 
-                  placeholder="Buscar por nombre o DNI..." 
-                  className={`w-64 ${inputBg}`}
+                  placeholder="Buscar..." 
+                  className={`w-full sm:w-48 ${inputBg}`}
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value)
+                    setCurrentPage(1)
+                  }}
                 />
-                <Button onClick={() => setIsAddOpen(true)} className="bg-blue-600 hover:bg-blue-700">
+                <Button onClick={() => setIsAddOpen(true)} className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto">
                   <UserPlus className="w-4 h-4 mr-2" />
-                  Nuevo
+                  <span className="hidden sm:inline">Nuevo</span>
+                  <span className="sm:hidden">Agregar</span>
                 </Button>
               </div>
             </div>
 
-            <div className={`border ${tableBorder} rounded-lg overflow-hidden`}>
+            {/* Mobile Card View */}
+            <div className="md:hidden space-y-3">
+              {paginatedEmployees.map(emp => (
+                <Card key={emp.id} className={`${subCardBg} border ${tableBorder}`}>
+                  <CardContent className="p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium">{emp.name}</p>
+                        <p className={`text-xs ${mutedText}`}>{emp.dni}</p>
+                      </div>
+                      <Badge className={emp.type === "empleado" ? "bg-blue-600" : "bg-purple-600"}>
+                        {emp.type}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className={mutedText}>{emp.department}</span>
+                      {emp.type === "empleado" ? (
+                        <span className="text-green-400">S/. {emp.salary}</span>
+                      ) : (
+                        <span className="text-purple-400">{emp.maxGrade} pts</span>
+                      )}
+                    </div>
+                    <div className={`text-xs ${mutedText}`}>
+                      {emp.type === "practicante" && emp.availableSchedules ? (
+                        emp.availableSchedules.map(s => s.name).join(", ")
+                      ) : (
+                        `${emp.checkInTime} - ${emp.checkOutTime}`
+                      )}
+                    </div>
+                    <div className="flex gap-2 pt-2 border-t border-gray-700/30">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="flex-1"
+                        onClick={() => openEditDialog(emp)}
+                      >
+                        <Pencil className="h-3 w-3 mr-1" />
+                        Editar
+                      </Button>
+                      <Button 
+                        variant="destructive" 
+                        size="sm"
+                        onClick={() => openDeleteDialog(emp)}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+              {paginatedEmployees.length === 0 && (
+                <p className={`text-center ${mutedText} py-8`}>No hay empleados registrados</p>
+              )}
+            </div>
+
+            {/* Desktop Table View */}
+            <div className={`hidden md:block border ${tableBorder} rounded-lg overflow-hidden`}>
               <Table>
                 <TableHeader>
                   <TableRow className={`${tableBorder} hover:bg-transparent`}>
@@ -373,7 +448,7 @@ export default function AdminAsistenciaPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredEmployees.map(emp => (
+                  {paginatedEmployees.map(emp => (
                     <TableRow key={emp.id} className={tableBorder}>
                       <TableCell className="font-mono">{emp.dni}</TableCell>
                       <TableCell className="font-medium">{emp.name}</TableCell>
@@ -448,26 +523,90 @@ export default function AdminAsistenciaPage() {
                 </TableBody>
               </Table>
             </div>
+
+            {/* Pagination for Employees */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-center gap-2 mt-4">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className={`text-sm ${mutedText}`}>
+                  Pagina {currentPage} de {totalPages}
+                </span>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
 
-        <Card className={`border ${cardBg} mt-8`}>
-          <CardContent className="p-6">
-            <h2 className="text-lg font-medium mb-4">Historial de Asistencia General</h2>
-            <div className={`border ${tableBorder} rounded-lg overflow-hidden`}>
+        {/* Attendance History Section */}
+        <Card className={`border ${cardBg}`}>
+          <CardContent className="p-4 md:p-6">
+            <h2 className="text-base md:text-lg font-medium mb-4 flex items-center gap-2">
+              <Clock className="w-5 h-5" />
+              Historial de Asistencia
+            </h2>
+            
+            {/* Mobile Card View */}
+            <div className="md:hidden space-y-3">
+              {paginatedAttendance.map(record => (
+                <Card key={record.id} className={`${subCardBg} border ${tableBorder}`}>
+                  <CardContent className="p-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">{record.employeeName}</span>
+                      <Badge className={record.status === "presente" ? "bg-green-600" : "bg-yellow-600"}>
+                        {record.status}
+                      </Badge>
+                    </div>
+                    <div className={`text-xs ${mutedText}`}>
+                      {format(record.date, "dd/MM/yyyy HH:mm")}
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span>Entrada: {record.checkIn}</span>
+                      {record.penaltyAmount ? (
+                        <span className="text-red-400">- S/. {record.penaltyAmount}</span>
+                      ) : record.pointsDeducted ? (
+                        <span className="text-amber-400">- {record.pointsDeducted} pts</span>
+                      ) : null}
+                    </div>
+                    {record.scheduleUsed && (
+                      <div className={`text-xs ${mutedText}`}>Horario: {record.scheduleUsed}</div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+              {paginatedAttendance.length === 0 && (
+                <p className={`text-center ${mutedText} py-8`}>No hay registros</p>
+              )}
+            </div>
+
+            {/* Desktop Table View */}
+            <div className={`hidden md:block border ${tableBorder} rounded-lg overflow-hidden`}>
               <Table>
                 <TableHeader>
                   <TableRow className={`${tableBorder} hover:bg-transparent`}>
                     <TableHead className={mutedText}>Fecha</TableHead>
                     <TableHead className={mutedText}>Colaborador</TableHead>
-                    <TableHead className={mutedText}>Horario Usado</TableHead>
+                    <TableHead className={mutedText}>Horario</TableHead>
                     <TableHead className={mutedText}>Entrada</TableHead>
                     <TableHead className={mutedText}>Estado</TableHead>
                     <TableHead className={mutedText}>Penalizacion</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {attendance.slice().reverse().slice(0, 20).map(record => (
+                  {paginatedAttendance.map(record => (
                     <TableRow key={record.id} className={tableBorder}>
                       <TableCell className={mutedText}>
                         {format(record.date, "dd/MM/yyyy HH:mm")}
@@ -501,21 +640,46 @@ export default function AdminAsistenciaPage() {
                 </TableBody>
               </Table>
             </div>
+
+            {/* Pagination for Attendance */}
+            {totalAttendancePages > 1 && (
+              <div className="flex items-center justify-center gap-2 mt-4">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setAttendancePage(p => Math.max(1, p - 1))}
+                  disabled={attendancePage === 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className={`text-sm ${mutedText}`}>
+                  Pagina {attendancePage} de {totalAttendancePages}
+                </span>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setAttendancePage(p => Math.min(totalAttendancePages, p + 1))}
+                  disabled={attendancePage === totalAttendancePages}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       </main>
 
-      {/* Add Employee Dialog */}
+      {/* Add/Edit/Delete Dialogs remain the same but with responsive adjustments */}
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-        <DialogContent className={`${isDarkMode ? "bg-[#141414] border-[#2a2a2a] text-white" : "bg-white border-gray-200"} max-w-2xl max-h-[90vh] overflow-y-auto`}>
+        <DialogContent className={`${isDarkMode ? "bg-[#141414] border-[#2a2a2a] text-white" : "bg-white border-gray-200"} max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-auto`}>
           <DialogHeader>
-            <DialogTitle className="text-xl">Registrar Nuevo Colaborador</DialogTitle>
+            <DialogTitle className="text-lg md:text-xl">Registrar Nuevo Colaborador</DialogTitle>
           </DialogHeader>
           
           <div className="space-y-4 py-4">
             <div className={`p-4 ${subCardBg} rounded-lg space-y-3`}>
               <h4 className="font-medium text-sm">Informacion Basica</h4>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className={`text-xs ${mutedText} mb-1 block`}>DNI *</label>
                   <Input 
@@ -536,7 +700,7 @@ export default function AdminAsistenciaPage() {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className={`text-xs ${mutedText} mb-1 block`}>Email *</label>
                   <Input 
@@ -672,7 +836,7 @@ export default function AdminAsistenciaPage() {
                   <DollarSign className="w-4 h-4" />
                   Configuracion Salarial
                 </h4>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className={`text-xs ${mutedText} mb-1 block`}>Sueldo Mensual (S/.)</label>
                     <Input 
@@ -702,7 +866,7 @@ export default function AdminAsistenciaPage() {
                   <GraduationCap className="w-4 h-4" />
                   Configuracion de Nota
                 </h4>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className={`text-xs ${mutedText} mb-1 block`}>Nota Maxima</label>
                     <Input 
@@ -728,24 +892,24 @@ export default function AdminAsistenciaPage() {
               </div>
             )}
 
-            <div className="flex justify-end gap-3 pt-2">
-              <Button variant="outline" onClick={() => { setIsAddOpen(false); resetForm(); }}>
+            <div className="flex flex-col sm:flex-row justify-end gap-3 pt-2">
+              <Button variant="outline" onClick={() => { setIsAddOpen(false); resetForm(); }} className="w-full sm:w-auto">
                 Cancelar
               </Button>
-              <Button onClick={handleAddEmployee} className="bg-blue-600 hover:bg-blue-700">
+              <Button onClick={handleAddEmployee} className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto">
                 <Save className="w-4 h-4 mr-2" />
-                Guardar Colaborador
+                Guardar
               </Button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* Edit Employee Dialog */}
+      {/* Edit Dialog */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent className={`${isDarkMode ? "bg-[#141414] border-[#2a2a2a] text-white" : "bg-white border-gray-200"} max-w-2xl max-h-[90vh] overflow-y-auto`}>
+        <DialogContent className={`${isDarkMode ? "bg-[#141414] border-[#2a2a2a] text-white" : "bg-white border-gray-200"} max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-auto`}>
           <DialogHeader>
-            <DialogTitle className="text-xl flex items-center gap-2">
+            <DialogTitle className="text-lg md:text-xl flex items-center gap-2">
               <Pencil className="w-5 h-5" />
               Editar Colaborador
             </DialogTitle>
@@ -755,7 +919,7 @@ export default function AdminAsistenciaPage() {
             <div className="space-y-4 py-4">
               <div className={`p-4 ${subCardBg} rounded-lg space-y-3`}>
                 <h4 className="font-medium text-sm">Informacion Basica</h4>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className={`text-xs ${mutedText} mb-1 block`}>DNI</label>
                     <Input 
@@ -773,7 +937,7 @@ export default function AdminAsistenciaPage() {
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className={`text-xs ${mutedText} mb-1 block`}>Email *</label>
                     <Input 
@@ -836,7 +1000,7 @@ export default function AdminAsistenciaPage() {
                       <DollarSign className="w-4 h-4" />
                       Configuracion Salarial
                     </h4>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <label className={`text-xs ${mutedText} mb-1 block`}>Sueldo Mensual (S/.)</label>
                         <Input 
@@ -901,7 +1065,7 @@ export default function AdminAsistenciaPage() {
                       <GraduationCap className="w-4 h-4" />
                       Configuracion de Nota
                     </h4>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <label className={`text-xs ${mutedText} mb-1 block`}>Nota Maxima</label>
                         <Input 
@@ -926,11 +1090,11 @@ export default function AdminAsistenciaPage() {
                 </>
               )}
 
-              <div className="flex justify-end gap-3 pt-2">
-                <Button variant="outline" onClick={() => { setIsEditOpen(false); setEditingEmployee(null); }}>
+              <div className="flex flex-col sm:flex-row justify-end gap-3 pt-2">
+                <Button variant="outline" onClick={() => { setIsEditOpen(false); setEditingEmployee(null); }} className="w-full sm:w-auto">
                   Cancelar
                 </Button>
-                <Button onClick={handleEditEmployee} className="bg-blue-600 hover:bg-blue-700">
+                <Button onClick={handleEditEmployee} className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto">
                   <Save className="w-4 h-4 mr-2" />
                   Guardar Cambios
                 </Button>
@@ -942,20 +1106,20 @@ export default function AdminAsistenciaPage() {
 
       {/* Delete Confirmation */}
       <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
-        <DialogContent className={`${isDarkMode ? "bg-[#141414] border-[#2a2a2a] text-white" : "bg-white border-gray-200"}`}>
+        <DialogContent className={`${isDarkMode ? "bg-[#141414] border-[#2a2a2a] text-white" : "bg-white border-gray-200"} w-[95vw] sm:w-auto max-w-md`}>
           <DialogHeader>
             <DialogTitle className="text-red-400">Eliminar Colaborador</DialogTitle>
           </DialogHeader>
           <p className={`${mutedText} py-4`}>
             Esta seguro de eliminar a <strong className={isDarkMode ? "text-white" : "text-gray-900"}>{deletingEmployee?.name}</strong> (DNI: {deletingEmployee?.dni})?
             <br />
-            Esta accion eliminara tambien todos sus registros de asistencia.
+            <span className="text-sm">Esta accion eliminara tambien todos sus registros de asistencia.</span>
           </p>
-          <div className="flex justify-end gap-3">
-            <Button variant="outline" onClick={() => setIsDeleteOpen(false)}>
+          <div className="flex flex-col sm:flex-row justify-end gap-3">
+            <Button variant="outline" onClick={() => setIsDeleteOpen(false)} className="w-full sm:w-auto">
               Cancelar
             </Button>
-            <Button variant="destructive" onClick={onDeleteEmployee}>
+            <Button variant="destructive" onClick={onDeleteEmployee} className="w-full sm:w-auto">
               Eliminar
             </Button>
           </div>
