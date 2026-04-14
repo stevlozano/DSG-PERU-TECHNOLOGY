@@ -671,12 +671,12 @@ export default function AdminAsistenciaPage() {
 
       {/* Add/Edit/Delete Dialogs remain the same but with responsive adjustments */}
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-        <DialogContent className={`${isDarkMode ? "bg-[#141414] border-[#2a2a2a] text-white" : "bg-white border-gray-200"} max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-auto`}>
-          <DialogHeader>
+        <DialogContent className={`${isDarkMode ? "bg-[#141414] border-[#2a2a2a] text-white" : "bg-white border-gray-200"} max-w-2xl max-h-[90vh] w-[95vw] sm:w-auto p-0`}>
+          <DialogHeader className="p-6 pb-0">
             <DialogTitle className="text-lg md:text-xl">Registrar Nuevo Colaborador</DialogTitle>
           </DialogHeader>
           
-          <div className="space-y-4 py-4">
+          <div className="space-y-4 p-6 overflow-y-auto max-h-[calc(90vh-100px)]">
             <div className={`p-4 ${subCardBg} rounded-lg space-y-3`}>
               <h4 className="font-medium text-sm">Informacion Basica</h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -907,8 +907,8 @@ export default function AdminAsistenciaPage() {
 
       {/* Edit Dialog */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent className={`${isDarkMode ? "bg-[#141414] border-[#2a2a2a] text-white" : "bg-white border-gray-200"} max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-auto`}>
-          <DialogHeader>
+        <DialogContent className={`${isDarkMode ? "bg-[#141414] border-[#2a2a2a] text-white" : "bg-white border-gray-200"} max-w-2xl max-h-[90vh] w-[95vw] sm:w-auto p-0`}>
+          <DialogHeader className="p-6 pb-0">
             <DialogTitle className="text-lg md:text-xl flex items-center gap-2">
               <Pencil className="w-5 h-5" />
               Editar Colaborador
@@ -916,7 +916,7 @@ export default function AdminAsistenciaPage() {
           </DialogHeader>
           
           {editingEmployee && (
-            <div className="space-y-4 py-4">
+            <div className="space-y-4 p-6 overflow-y-auto max-h-[calc(90vh-100px)]">
               <div className={`p-4 ${subCardBg} rounded-lg space-y-3`}>
                 <h4 className="font-medium text-sm">Informacion Basica</h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
