@@ -270,6 +270,16 @@ export default function EmpleadoAsistenciaPage() {
         </div>
       </header>
 
+      {/* Large Clock Section */}
+      <div className={`border-b ${headerBorder} py-6 md:py-8`}>
+        <div className="container mx-auto px-4 md:px-6 text-center">
+          <p className="text-5xl md:text-7xl font-extralight tracking-tight">{currentTime}</p>
+          <p className={`text-sm md:text-base ${mutedText} mt-1`}>
+            {format(new Date(), "EEEE, d 'de' MMMM, yyyy", { locale: es })}
+          </p>
+        </div>
+      </div>
+
       <main className="container mx-auto px-4 py-8 space-y-6">
         {/* Resumen Salarial */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
