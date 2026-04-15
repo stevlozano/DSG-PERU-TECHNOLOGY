@@ -375,10 +375,19 @@ export default function AdminAsistenciaPage() {
               <Button 
                 variant="ghost" 
                 size="sm" 
-                onClick={handleLogout} 
+                onClick={handleAdminLogout} 
                 className={`${mutedText} gap-2`}
               >
                 <LogOut className="h-4 w-4" />
+                <span className="hidden sm:inline">Cerrar sesión</span>
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={handleLogout} 
+                className={`${mutedText} gap-2`}
+              >
+                <ArrowLeft className="h-4 w-4" />
                 <span className="hidden sm:inline">Salir</span>
               </Button>
               <div className="text-right hidden md:block">
