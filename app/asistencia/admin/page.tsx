@@ -70,15 +70,41 @@ const defaultSchedules: Schedule[] = [
   { name: "Tarde (Extendido)", checkInTime: "14:00", checkOutTime: "20:00" },
 ]
 
+const ADMIN_CODE = "123456789"
+
 export default function AdminAsistenciaPage() {
   const [isDarkMode, setIsDarkMode] = useState(true)
+  const [adminCode, setAdminCode] = useState("")
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false)
+  const [adminError, setAdminError] = useState(false)
   
   useEffect(() => {
     const savedTheme = localStorage.getItem("asistencia-theme")
     if (savedTheme) {
       setIsDarkMode(savedTheme === "dark")
     }
+    
+    const savedAdminAuth = sessionStorage.getItem("dsg-admin-auth")
+    if (savedAdminAuth === "true") {
+      setIsAdminAuthenticated(true)
+    }
   }, [])
+
+  const handleAdminLogin = () => {
+    if (adminCode === ADMIN_CODE) {
+      setIsAdminAuthenticated(true)
+      sessionStorage.setItem("dsg-admin-auth", "true")
+      setAdminError(false)
+    } else {
+      setAdminError(true)
+    }
+  }
+
+  const handleAdminLogout = () => {
+    sessionStorage.removeItem("dsg-admin-auth")
+    setIsAdminAuthenticated(false)
+    setAdminCode("")
+  }
 
   const toggleTheme = () => {
     const newMode = !isDarkMode
@@ -88,6 +114,7 @@ export default function AdminAsistenciaPage() {
 
   const handleLogout = () => {
     sessionStorage.removeItem("dsg-asistencia-auth")
+    sessionStorage.removeItem("dsg-admin-auth")
     window.location.href = "/asistencia"
   }
 
@@ -278,6 +305,52 @@ export default function AdminAsistenciaPage() {
   // Pagination for attendance
   const totalAttendancePages = Math.ceil(attendance.length / itemsPerPage)
   const paginatedAttendance = attendance.slice().reverse().slice((attendancePage - 1) * itemsPerPage, attendancePage * itemsPerPage)
+
+  // Admin Login Screen - Minimalista
+  if (!isAdminAuthenticated) {
+    return (
+      <div className={`min-h-screen ${bgClass} flex items-center justify-center`}>
+        <div className="w-full max-w-sm px-6">
+          <div className="text-center mb-8">
+            <h1 className="text-2xl font-light tracking-wide mb-2">Admin</h1>
+            <p className={`text-sm ${mutedText}`}>Ingrese código de acceso</p>
+          </div>
+          
+          <div className="space-y-4">
+            <Input
+              type="password"
+              placeholder="Código"
+              value={adminCode}
+              onChange={(e) => setAdminCode(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleAdminLogin()}
+              className={`${inputBg} text-center text-lg tracking-widest h-12`}
+              maxLength={9}
+            />
+            
+            {adminError && (
+              <p className="text-red-400 text-sm text-center">Código incorrecto</p>
+            )}
+            
+            <Button 
+              onClick={handleAdminLogin}
+              className="w-full h-12 text-base"
+            >
+              Entrar
+            </Button>
+          </div>
+          
+          <div className="mt-8 text-center">
+            <Link href="/asistencia">
+              <Button variant="ghost" className={`${mutedText}`}>
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Volver
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className={`min-h-screen ${bgClass}`}>
